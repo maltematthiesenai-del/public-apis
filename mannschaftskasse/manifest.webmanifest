@@ -1,0 +1,16 @@
+{
+  "name": "Mannschaftskasse",
+  "short_name": "Kasse",
+  "description": "Einfache Buchführung für die Mannschaftskasse deiner Fußballmannschaft.",
+  "lang": "de",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f9f9f7",
+  "theme_color": "#0e7a48",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mannschaftskasse</title>
+<meta name="description" content="Einfache Buchführung für die Mannschaftskasse deiner Fußballmannschaft.">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="styles.css">
+<script>
+  // Theme früh setzen, damit es beim Laden nicht flackert.
+  try {
+    var t = localStorage.getItem('mk.theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<svg width="0" height="0" aria-hidden="true" style="position:absolute">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.6 12 3l9 7.6V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.2"/><path d="M17 11.2A3 3 0 0 0 17 5.4M20 20v-1.4a3.5 3.5 0 0 0-2.4-3.3"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="6.5" y="3.5" width="11" height="17" rx="2"/><path d="M9.5 8.5h5M9.5 12h5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5 9.5 17.5 19.5 6.5"/></symbol>
+    <symbol id="i-ball" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m12 7.4 4.2 3-1.6 5h-5.2l-1.6-5zM12 3v4.4M4.2 9.6l4.2 2.8M19.8 9.6l-4.2 2.8M7.2 20l2.2-4.1M16.8 20l-2.2-4.1"/></symbol>
+  </defs>
+</svg>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark"><svg class="ic"><use href="#i-ball"></use></svg></span>
+      <span class="brand-text">
+        <strong id="brandTeam">Mannschaftskasse</strong>
+        <small id="brandSeason">Saison</small>
+      </span>
+    </div>
+    <nav class="nav" id="navDesktop"></nav>
+    <button class="btn btn-primary btn-block" data-action="new-transaction">
+      <svg class="ic"><use href="#i-plus"></use></svg> Neue Buchung
+    </button>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h1 id="viewTitle">Übersicht</h1>
+      <div class="topbar-actions" id="topbarActions"></div>
+    </header>
+    <div id="view" class="view"></div>
+    <div class="tabbar-spacer"></div>
+  </main>
+
+  <nav class="tabbar" id="navMobile"></nav>
+  <button class="fab" data-action="new-transaction" aria-label="Neue Buchung">
+    <svg class="ic"><use href="#i-plus"></use></svg>
+  </button>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot" class="toast-root" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
