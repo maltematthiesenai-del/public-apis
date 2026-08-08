@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mannschaftskasse</title>
 <meta name="description" content="Einfache Buchführung für die Mannschaftskasse deiner Fußballmannschaft.">
-<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#151a17">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Kasse">
@@ -16,11 +15,15 @@
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="stylesheet" href="styles.css">
 <script>
-  // Theme früh setzen, damit es beim Laden nicht flackert.
+  /* Design früh setzen, damit es beim Laden nicht flackert.
+     Ohne eigene Wahl ist Dunkel die Grundstimmung; „Automatisch" wird
+     ausdrücklich gespeichert und folgt dann der Systemeinstellung. */
   try {
-    var t = localStorage.getItem('mk.theme');
+    var t = localStorage.getItem('mk.theme') || 'dark';
     if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-  } catch (e) {}
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
 </script>
 </head>
 <body>

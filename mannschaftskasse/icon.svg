@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mannschaftskasse">
-  <rect width="512" height="512" rx="112" fill="#0e7a48"/>
-  <g fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="256" cy="256" r="132"/>
-    <path d="M256 189l63 45.8-24 74.2h-78l-24-74.2z" fill="#ffffff"/>
-    <path d="M256 124v65M147 216l70 47M365 216l-70 47M196 355l35-46M316 355l-35-46"/>
+  <rect width="512" height="512" rx="112" fill="#151a17"/>
+  <circle cx="256" cy="256" r="168" fill="#b4f038"/>
+  <g fill="none" stroke="#14210a" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="256" cy="256" r="118"/>
+    <path d="M256 196l56 40.7-21.4 66h-69.2l-21.4-66z" fill="#14210a"/>
+    <path d="M256 138v58M158 216l62 42M354 216l-62 42M199 340l31-41M313 340l-31-41"/>
   </g>
 </svg>

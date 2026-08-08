@@ -124,11 +124,21 @@ Unter **Mehr → Version** steht die installierte Fassung, daneben ein Knopf fü
 die Suche von Hand. Die Einzeldatei-Fassung hat keinen Service Worker und
 aktualisiert sich deshalb nicht selbst — die muss man neu herunterladen.
 
+## Zum Design
+
+Dunkles Anthrazit mit Grünstich, abgesetzte Karten mit großen Radien und ein
+einziger lauter Akzent in Limette (`#b4f038`) — auf Knöpfen als Fläche mit
+dunkler Schrift, sonst als Schriftfarbe für alles Aktive. Dunkel ist die
+Grundstimmung; unter **Mehr → Darstellung** lässt sich auf Hell oder
+Automatisch umstellen. Das helle Design nutzt dieselben Formen, ersetzt die
+Limette als Schriftfarbe aber durch ein dunkleres Grün, weil Limette auf Weiß
+nur 1,4:1 Kontrast bringt.
+
 Das Diagramm zeigt Einnahmen in Grün und Ausgaben in Rot. Dieses Paar ist für
 rot-grün-blinde Menschen das schwierigste überhaupt, deshalb sind die Töne
 bewusst unterschiedlich hell gewählt: Sie bleiben auch dann unterscheidbar,
-wenn der Farbton wegfällt (gemessener Abstand ΔE 9,3 im hellen und 11,1 im
-dunklen Design, Zielwert ≥ 8). Zusätzlich steht die Reihenfolge fest —
+wenn der Farbton wegfällt (gemessener Abstand ΔE 25,8 im dunklen und 10,3 im
+hellen Design, Zielwert ≥ 8). Zusätzlich steht die Reihenfolge fest —
 Einnahmen immer links, Ausgaben immer rechts —, es gibt eine Legende und die
 Tabellenansicht, sodass die Werte nie allein an der Farbe hängen.
 

@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-08.1';
+  var APP_VERSION = '2026-08-08.2';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Sonstige Einnahme'],
@@ -854,7 +854,7 @@
     function bar(x, cents, fill) {
       var h = (cents / max) * plotH;
       if (h <= 0) return '';
-      var r = Math.min(4, h, barW / 2);
+      var r = Math.min(6, h, barW / 2);
       var top = padT + plotH - h;
       var d = 'M' + x + ' ' + (padT + plotH) +
         ' V' + (top + r) +
@@ -869,6 +869,17 @@
     var svg = ['<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
       'aria-label="Einnahmen und Ausgaben der letzten sechs Monate">'];
 
+    // Sanfter Verlauf in den Balken — die Farben kommen aus dem Stylesheet,
+    // damit sie beim Wechsel zwischen hell und dunkel mitgehen.
+    svg.push('<defs>' +
+      ['in', 'out'].map(function (k) {
+        var c = 'var(--series-' + k + ')';
+        return '<linearGradient id="mk-grad-' + k + '" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" style="stop-color:' + c + ';stop-opacity:1"/>' +
+          '<stop offset="100%" style="stop-color:' + c + ';stop-opacity:.72"/>' +
+          '</linearGradient>';
+      }).join('') + '</defs>');
+
     ticks.forEach(function (t) {
       var yy = y(t);
       svg.push('<line class="' + (t === 0 ? 'axis-line' : 'grid-line') + '" x1="' + padL + '" x2="' + (W - padR) +
@@ -882,8 +893,8 @@
       svg.push('<rect class="band-bg" x="' + (bx + 2) + '" y="' + padT + '" width="' + (bandW - 4) +
         '" height="' + plotH + '" rx="6" data-band-bg="' + i + '"/>');
       var cx = bx + bandW / 2;
-      svg.push(bar(cx - barW - gap / 2, d.in, 'var(--series-in)'));
-      svg.push(bar(cx + gap / 2, d.out, 'var(--series-out)'));
+      svg.push(bar(cx - barW - gap / 2, d.in, 'url(#mk-grad-in)'));
+      svg.push(bar(cx + gap / 2, d.out, 'url(#mk-grad-out)'));
       svg.push('<text class="tick" x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle">' +
         esc(monthLabel(d.key)) + '</text>');
       svg.push('<rect class="band-hit" x="' + bx + '" y="' + padT + '" width="' + bandW +
@@ -1169,7 +1180,7 @@
   };
 
   views.mehr = function () {
-    var theme = localStorage.getItem(THEME_KEY) || 'auto';
+    var theme = localStorage.getItem(THEME_KEY) || 'dark';
     var tot = totals();
 
     var html = '<section class="card">' +
@@ -1467,13 +1478,10 @@
       var chip = e.target.closest('[data-theme]');
       if (!chip) return;
       var v = chip.dataset.theme;
-      if (v === 'auto') {
-        localStorage.removeItem(THEME_KEY);
-        document.documentElement.removeAttribute('data-theme');
-      } else {
-        localStorage.setItem(THEME_KEY, v);
-        document.documentElement.setAttribute('data-theme', v);
-      }
+      // „Automatisch" wird ausdrücklich gespeichert — ohne Eintrag gilt Dunkel.
+      localStorage.setItem(THEME_KEY, v);
+      if (v === 'auto') document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme', v);
       render();
     });
   }
