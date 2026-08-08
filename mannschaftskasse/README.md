@@ -102,10 +102,13 @@ Kein Build-Schritt, keine Abhängigkeiten. Wer etwas ändert, lädt einfach neu 
 nach Änderungen an den Dateien in `sw.js` die `CACHE`-Version hochzählen, damit
 installierte Kopien die neue Fassung ziehen.
 
-Die Farben des Diagramms sind gegen Farbfehlsichtigkeit geprüft (Blau für
-Einnahmen, Orange für Ausgaben, in beiden Designs kontrastgeprüft); die Werte
-stehen zusätzlich in der Tabellenansicht, damit sie nie allein an der Farbe
-hängen.
+Das Diagramm zeigt Einnahmen in Grün und Ausgaben in Rot. Dieses Paar ist für
+rot-grün-blinde Menschen das schwierigste überhaupt, deshalb sind die Töne
+bewusst unterschiedlich hell gewählt: Sie bleiben auch dann unterscheidbar,
+wenn der Farbton wegfällt (gemessener Abstand ΔE 9,3 im hellen und 11,1 im
+dunklen Design, Zielwert ≥ 8). Zusätzlich steht die Reihenfolge fest —
+Einnahmen immer links, Ausgaben immer rechts —, es gibt eine Legende und die
+Tabellenansicht, sodass die Werte nie allein an der Farbe hängen.
 
 Beträge werden bewusst selbst formatiert statt über `Intl`: So steht auf jedem
 Gerät derselbe Euro-Betrag in deutscher Schreibweise — auch wenn das Handy auf

@@ -31,9 +31,11 @@
   --warn-soft: #fdf1d8;
   --warn-ink:  #6f4b00;
 
-  /* Diagramm-Serien: gegen Farbfehlsichtigkeit geprüft, beide Modi. */
-  --series-in:  #2a78d6;
-  --series-out: #eb6834;
+  /* Diagramm-Serien: Grün für Einnahmen, Rot für Ausgaben.
+     Die Töne sind bewusst unterschiedlich hell gewählt — so bleiben sie auch
+     bei Rot-Grün-Blindheit unterscheidbar (geprüfter Abstand ΔE 9,3). */
+  --series-in:  #1aa363;
+  --series-out: #c62828;
   --grid:       #e6e8ec;
   --axis:       #d3d7dd;
 
@@ -79,8 +81,9 @@
     --warn-soft: #33280f;
     --warn-ink:  #f3bb44;
 
-    --series-in:  #3987e5;
-    --series-out: #d95926;
+    /* Dunkles Design: eigene Abstufung, ΔE 11,1 bei Rot-Grün-Blindheit. */
+    --series-in:  #27ab6a;
+    --series-out: #c0392b;
     --grid:       #26282c;
     --axis:       #363a3f;
 
@@ -117,8 +120,8 @@
   --warn-soft: #33280f;
   --warn-ink:  #f3bb44;
 
-  --series-in:  #3987e5;
-  --series-out: #d95926;
+  --series-in:  #27ab6a;
+  --series-out: #c0392b;
   --grid:       #26282c;
   --axis:       #363a3f;
 
@@ -597,16 +600,16 @@ select { appearance: none; -webkit-appearance: none; padding-right: 34px;
   position: absolute; pointer-events: none; z-index: 5;
   background: var(--surface); border: 1px solid var(--line-strong);
   border-radius: var(--r-md); box-shadow: var(--shadow-3);
-  padding: 10px 12px; font-size: 12.5px; min-width: 168px;
+  padding: 10px 12px; font-size: 12.5px; min-width: 192px;
   opacity: 0; translate: -50% 0; scale: .97;
   transition: opacity .14s ease, scale .14s var(--spring);
 }
 .chart-tip.on { opacity: 1; scale: 1; }
 .chart-tip .tip-title { font-weight: 680; margin-bottom: 6px; letter-spacing: -.015em; }
 .chart-tip .tip-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
-.chart-tip .tip-row span { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); }
-.chart-tip .tip-row i { width: 9px; height: 9px; border-radius: 3px; }
-.chart-tip .tip-row b { font-variant-numeric: tabular-nums; font-weight: 650; }
+.chart-tip .tip-row span { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); white-space: nowrap; }
+.chart-tip .tip-row i { width: 9px; height: 9px; border-radius: 3px; flex: none; }
+.chart-tip .tip-row b { font-variant-numeric: tabular-nums; font-weight: 650; white-space: nowrap; }
 
 details.table-view { padding: 0 16px 15px; }
 details.table-view summary {

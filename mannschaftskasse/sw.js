@@ -1,7 +1,7 @@
 /* Service Worker: macht die App offline nutzbar.
    Bei Änderungen an den Dateien CACHE hochzählen. */
 
-var CACHE = 'mannschaftskasse-v2';
+var CACHE = 'mannschaftskasse-v3';
 var ASSETS = [
   '.',
   'index.html',
