@@ -98,9 +98,31 @@ Jahresabrechnung.
 | `manifest.webmanifest`, `icon.svg` | Installation als App |
 | `build-einzeldatei.js` | baut alles zu einer einzigen HTML-Datei zusammen |
 
-Kein Build-Schritt, keine Abhängigkeiten. Wer etwas ändert, lädt einfach neu —
-nach Änderungen an den Dateien in `sw.js` die `CACHE`-Version hochzählen, damit
-installierte Kopien die neue Fassung ziehen.
+Kein Build-Schritt, keine Abhängigkeiten. Nach Änderungen zwei Zähler
+hochsetzen: `CACHE` in `sw.js` und `APP_VERSION` in `app.js` — Letzteres wird
+unter „Mehr" angezeigt, daran erkennt man auf dem Handy, welche Fassung
+angekommen ist.
+
+## Wie Aktualisierungen auf dem Handy ankommen
+
+Der Service Worker fragt **zuerst das Netz** und greift erst auf den
+Zwischenspeicher zurück, wenn nichts antwortet (nach 3,5 Sekunden) oder gar
+kein Empfang da ist. Damit zeigt die installierte App beim Start immer den
+neuesten Stand, funktioniert aber ohne Netz weiter.
+
+Drei Details sind dafür nötig, und jedes einzelne davon reicht aus, um
+Aktualisierungen zu verhindern, wenn es fehlt:
+
+1. Die Anfrage ans Netz läuft mit `cache: 'no-cache'` — sonst schiebt sich der
+   Zwischenspeicher des Browsers davor (GitHub Pages erlaubt zehn Minuten).
+2. Die Registrierung nutzt `updateViaCache: 'none'`, damit `sw.js` selbst
+   nicht aus dem Zwischenspeicher kommt.
+3. Beim Start und beim Zurückholen aus dem Hintergrund wird nach einer neuen
+   Fassung gesucht; übernimmt eine neue, lädt die Seite genau einmal neu.
+
+Unter **Mehr → Version** steht die installierte Fassung, daneben ein Knopf für
+die Suche von Hand. Die Einzeldatei-Fassung hat keinen Service Worker und
+aktualisiert sich deshalb nicht selbst — die muss man neu herunterladen.
 
 Das Diagramm zeigt Einnahmen in Grün und Ausgaben in Rot. Dieses Paar ist für
 rot-grün-blinde Menschen das schwierigste überhaupt, deshalb sind die Töne

@@ -12,6 +12,10 @@
   var STORAGE_KEY = 'mk.data.v1';
   var THEME_KEY = 'mk.theme';
 
+  // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
+  // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
+  var APP_VERSION = '2026-08-08.1';
+
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Sonstige Einnahme'],
     out: ['Getränke', 'Ausrüstung', 'Mannschaftsabend', 'Schiedsrichter', 'Turnier / Fahrt', 'Sonstige Ausgabe']
@@ -1215,6 +1219,14 @@
         '</div>' +
       '</div></section>';
 
+    html += '<section class="card">' +
+      '<div class="card-head"><h2>Version</h2></div>' +
+      '<div class="card-body" style="display:flex;flex-direction:column;gap:10px">' +
+        '<p class="hint">Installiert ist Fassung <strong class="num">' + esc(APP_VERSION) + '</strong>. ' +
+          'Die App holt sich Neues beim Start automatisch, sobald Empfang da ist.</p>' +
+        '<div><button class="btn btn-sm" data-action="check-update">Jetzt nach Aktualisierung suchen</button></div>' +
+      '</div></section>';
+
     html += '<p class="hint" style="text-align:center;color:var(--muted)">' +
       state.members.length + ' Spieler · ' + state.transactions.length + ' Buchungen · ' +
       'offen: ' + money(tot.openIn) + '</p>';
@@ -1482,6 +1494,21 @@
     'import-json': importJSON,
     'demo': loadDemo,
     'reset': resetAll,
+    'check-update': function () {
+      if (!('serviceWorker' in navigator) || location.protocol === 'file:') {
+        toast('Diese Fassung aktualisiert sich nicht selbst.');
+        return;
+      }
+      toast('Suche nach Aktualisierung …');
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (!reg) { location.reload(); return; }
+        return reg.update().then(function () {
+          if (reg.waiting) { reg.waiting.postMessage('skip-waiting'); return; }
+          // Nichts Neues da: trotzdem frisch laden, dann ist es eindeutig.
+          setTimeout(function () { location.reload(); }, 900);
+        });
+      }).catch(function () { location.reload(); });
+    },
     'save-team': function () {
       var name = $('#t-name').value.trim();
       var season = $('#t-season').value.trim();
@@ -1529,9 +1556,50 @@
   if (!location.hash) location.hash = '#/uebersicht';
   render();
 
+  /* ---------------------------------------------------------------------
+     Aktualisierung der installierten App
+
+     Drei Dinge sorgen dafür, dass eine neue Fassung auch auf dem Handy
+     ankommt: der Service Worker wird nicht aus dem Browser-Zwischenspeicher
+     gelesen, beim Start und beim Zurückholen aus dem Hintergrund wird nach
+     einer neuen Fassung gesucht, und übernimmt eine neue das Ruder, lädt
+     die Seite genau einmal neu.
+     ------------------------------------------------------------------ */
+
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    var hatteController = !!navigator.serviceWorker.controller;
+    var laedtNeu = false;
+
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      // Beim allerersten Besuch gab es noch keinen — dann ist nichts zu tun.
+      if (!hatteController || laedtNeu) return;
+      laedtNeu = true;
+      location.reload();
+    });
+
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').catch(function () { /* offline-Betrieb ist optional */ });
+      navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+        .then(function (reg) {
+          reg.update();
+
+          // Eine bereits wartende Fassung sofort übernehmen lassen.
+          if (reg.waiting) reg.waiting.postMessage('skip-waiting');
+          reg.addEventListener('updatefound', function () {
+            var neu = reg.installing;
+            if (!neu) return;
+            neu.addEventListener('statechange', function () {
+              if (neu.state === 'installed' && navigator.serviceWorker.controller) {
+                toast('Neue Fassung wird geladen …');
+              }
+            });
+          });
+
+          // Beim Zurückholen aus dem Hintergrund erneut nachsehen.
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') reg.update();
+          });
+        })
+        .catch(function () { /* Offline-Betrieb ist eine Zugabe, kein Muss. */ });
     });
   }
 })();
