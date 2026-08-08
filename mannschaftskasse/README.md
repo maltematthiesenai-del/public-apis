@@ -28,6 +28,16 @@ python3 -m http.server 8000   # oder: npx http-server -p 8000
 > oder HTTPS, nicht beim direkten Öffnen per `file://`. Die App selbst läuft
 > auch dort.
 
+**Als eine einzige Datei zum Weitergeben:**
+
+```bash
+node build-einzeldatei.js        # erzeugt mannschaftskasse-app.html
+```
+
+Darin stecken HTML, CSS, JavaScript und das Icon zusammen — die Datei lässt sich
+verschicken, doppelklicken und sofort nutzen. Nur Installation als App und
+Offline-Cache fehlen dort, dafür braucht es die Einzeldateien auf einem Server.
+
 ## Was die App kann
 
 **Übersicht** — Kassenstand als große Zahl, Einnahmen und Ausgaben, offene
