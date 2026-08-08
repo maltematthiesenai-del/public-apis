@@ -44,14 +44,28 @@
      Helfer
      ------------------------------------------------------------------ */
 
-  var euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-  var euroShort = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+  /* Beträge werden bewusst selbst formatiert statt über Intl: So steht auf
+     jedem Gerät derselbe Euro-Betrag in deutscher Schreibweise — unabhängig
+     davon, welche Sprache und Region im Handy eingestellt sind. */
 
-  function money(cents) { return euro.format((cents || 0) / 100); }
+  function groupThousands(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+
+  function money(cents) {
+    var v = Math.abs(Math.round(cents || 0));
+    var text = groupThousands(Math.floor(v / 100)) + ',' + pad(v % 100) + ' €';
+    return (cents < 0 ? '−' : '') + text;
+  }
 
   function moneySigned(cents) {
     var s = cents > 0 ? '+' : cents < 0 ? '−' : '';
-    return s + euro.format(Math.abs(cents || 0) / 100);
+    return s + money(Math.abs(cents || 0));
+  }
+
+  // Für Achsenbeschriftungen: volle Euro ohne Nachkommastellen.
+  function moneyShort(cents) {
+    return groupThousands(Math.round((cents || 0) / 100)) + ' €';
   }
 
   function parseAmount(value) {
@@ -309,8 +323,11 @@
      Formular-Bausteine
      ------------------------------------------------------------------ */
 
+  /* Umschalter mit gleitender Markierung. Die Markierung wandert per CSS
+     (:has) — deshalb sind hier immer genau zwei Optionen vorgesehen. */
   function segmented(name, options, value, extraClass) {
     return '<div class="segmented ' + (extraClass || '') + '" data-segmented="' + name + '">' +
+      '<span class="seg-ind" aria-hidden="true"></span>' +
       options.map(function (o) {
         return '<button type="button" data-value="' + esc(o.value) + '" aria-pressed="' +
           (o.value === value ? 'true' : 'false') + '">' + esc(o.label) + '</button>';
@@ -853,7 +870,7 @@
       svg.push('<line class="' + (t === 0 ? 'axis-line' : 'grid-line') + '" x1="' + padL + '" x2="' + (W - padR) +
         '" y1="' + yy + '" y2="' + yy + '"/>');
       svg.push('<text class="tick" x="' + (padL - 8) + '" y="' + (yy + 4) + '" text-anchor="end">' +
-        euroShort.format(t / 100) + ' €</text>');
+        moneyShort(t) + '</text>');
     });
 
     data.forEach(function (d, i) {
@@ -939,17 +956,20 @@
 
   function transactionRow(t) {
     var name = memberName(t.memberId);
-    // Die Notiz steht schon in der Überschrift — hier nur der Kontext.
-    var sub = [fmtDate(t.date), t.category, name].filter(Boolean).join(' · ');
+    /* Unterzeile knapp halten: Steht kein Spieler dabei, sagt die Kategorie am
+       meisten — sonst der Name. Alles Weitere steht beim Öffnen der Buchung. */
+    var sub = [fmtDate(t.date), name || t.category].join(' · ');
     return '<button class="list-row" data-tx="' + t.id + '">' +
       '<span class="avatar ' + t.type + '">' + (t.type === 'in' ? '+' : '−') + '</span>' +
       '<span class="grow">' +
         '<span class="title">' + esc(t.note || t.category) + '</span>' +
         '<span class="sub">' + esc(sub) + '</span>' +
       '</span>' +
-      (t.status === 'open' ? '<span class="badge open">offen</span>' : '') +
-      '<span class="amount num ' + (t.type === 'in' ? 'pos' : 'neg') + '">' +
-        (t.type === 'in' ? '+' : '−') + money(t.cents) + '</span>' +
+      '<span class="end">' +
+        '<span class="amount num ' + (t.type === 'in' ? 'pos' : 'neg') + '">' +
+          (t.type === 'in' ? '+' : '−') + money(t.cents) + '</span>' +
+        (t.status === 'open' ? '<span class="badge open">offen</span>' : '') +
+      '</span>' +
       '</button>';
   }
 
@@ -1008,7 +1028,7 @@
             '<span class="avatar">' + esc(initials(d.m.name)) + '</span>' +
             '<span class="grow"><span class="title">' + esc(d.m.name) + '</span>' +
             '<span class="sub">' + d.count + ' offene Buchung' + (d.count === 1 ? '' : 'en') + '</span></span>' +
-            '<span class="amount num">' + money(d.open) + '</span></button>';
+            '<span class="end"><span class="amount num">' + money(d.open) + '</span></span></button>';
         }).join('') +
         '</div></section>';
     }
@@ -1107,9 +1127,11 @@
           '<span class="grow"><span class="title">' + esc(m.name) +
             (m.number ? ' <span class="hint">· ' + esc(m.number) + '</span>' : '') + '</span>' +
             '<span class="sub">' + esc(sub) + '</span></span>' +
-          (m.active === false ? '<span class="badge">inaktiv</span>' : '') +
-          (st.openIn > 0 ? '<span class="amount num neg">' + money(st.openIn) + '</span>'
-            : '<span class="badge paid">' + icon('i-check') + '</span>') +
+          '<span class="end">' +
+            (st.openIn > 0 ? '<span class="amount num neg">' + money(st.openIn) + '</span>'
+              : '<span class="badge paid">' + icon('i-check') + '</span>') +
+            (m.active === false ? '<span class="badge">inaktiv</span>' : '') +
+          '</span>' +
           '</button>';
       });
     }
@@ -1128,9 +1150,8 @@
       state.fines.forEach(function (f) {
         html += '<button class="list-row" data-fine="' + f.id + '">' +
           '<span class="avatar in">' + icon('i-card') + '</span>' +
-          '<span class="grow"><span class="title">' + esc(f.label) + '</span>' +
-            '<span class="sub">buchen für Spieler …</span></span>' +
-          '<span class="amount num">' + money(f.cents) + '</span>' +
+          '<span class="grow"><span class="title">' + esc(f.label) + '</span></span>' +
+          '<span class="end"><span class="amount num">' + money(f.cents) + '</span></span>' +
           '</button>';
       });
     }
@@ -1356,7 +1377,7 @@
         return '<button class="list-row" data-edit-fine="' + f.id + '">' +
           '<span class="grow"><span class="title">' + esc(f.label) + '</span>' +
           '<span class="sub">antippen zum Bearbeiten</span></span>' +
-          '<span class="amount num">' + money(f.cents) + '</span></button>';
+          '<span class="end"><span class="amount num">' + money(f.cents) + '</span></span></button>';
       }).join('') : '<div class="empty">Noch keine Strafen im Katalog.</div>') +
       '</div>';
 
@@ -1492,7 +1513,13 @@
     if (fine) { bookFineDialog(fine.dataset.fine); return; }
   });
 
-  window.addEventListener('hashchange', render);
+  /* Beim Wechsel der Ansicht blendet der Browser weich über, sofern er die
+     View Transitions kennt — sonst wird einfach direkt neu gezeichnet. */
+  window.addEventListener('hashchange', function () {
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (document.startViewTransition && !reduced) document.startViewTransition(render);
+    else render();
+  });
 
   /* ---------------------------------------------------------------------
      Start

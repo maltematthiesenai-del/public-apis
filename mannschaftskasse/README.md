@@ -96,6 +96,7 @@ Jahresabrechnung.
 | `app.js` | Daten, Berechnungen, Ansichten, Dialoge, Import/Export |
 | `sw.js` | Service Worker für den Offline-Betrieb |
 | `manifest.webmanifest`, `icon.svg` | Installation als App |
+| `build-einzeldatei.js` | baut alles zu einer einzigen HTML-Datei zusammen |
 
 Kein Build-Schritt, keine Abhängigkeiten. Wer etwas ändert, lädt einfach neu —
 nach Änderungen an den Dateien in `sw.js` die `CACHE`-Version hochzählen, damit
@@ -105,3 +106,8 @@ Die Farben des Diagramms sind gegen Farbfehlsichtigkeit geprüft (Blau für
 Einnahmen, Orange für Ausgaben, in beiden Designs kontrastgeprüft); die Werte
 stehen zusätzlich in der Tabellenansicht, damit sie nie allein an der Farbe
 hängen.
+
+Beträge werden bewusst selbst formatiert statt über `Intl`: So steht auf jedem
+Gerät derselbe Euro-Betrag in deutscher Schreibweise — auch wenn das Handy auf
+Englisch läuft. In den Listen darf Text auf zwei Zeilen umbrechen statt
+abgeschnitten zu werden; das ist der Grund für den Rasteraufbau der Zeilen.
