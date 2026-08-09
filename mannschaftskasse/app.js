@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-08.2';
+  var APP_VERSION = '2026-08-09.1';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Sonstige Einnahme'],
@@ -243,6 +243,30 @@
       keys.push(x.getFullYear() + '-' + pad(x.getMonth() + 1));
     }
     return keys;
+  }
+
+  // Zeitraum des Diagramms auf der Übersicht (Pillen über dem Diagramm).
+  var chartMonths = 6;
+
+  function expensesByCategory() {
+    var map = {};
+    state.transactions.forEach(function (t) {
+      if (t.type !== 'out' || t.status !== 'paid') return;
+      map[t.category] = (map[t.category] || 0) + t.cents;
+    });
+    return Object.keys(map).map(function (k) { return { label: k, cents: map[k] }; })
+      .sort(function (a, b) { return b.cents - a.cents; });
+  }
+
+  function fineRanking() {
+    var map = {};
+    state.transactions.forEach(function (t) {
+      if (t.category !== 'Strafe' || !t.memberId) return;
+      map[t.memberId] = (map[t.memberId] || 0) + t.cents;
+    });
+    return Object.keys(map).map(function (id) {
+      return { name: memberName(id) || 'Unbekannt', id: id, cents: map[id] };
+    }).sort(function (a, b) { return b.cents - a.cents; });
   }
 
   function monthlySeries(n) {
@@ -838,14 +862,14 @@
   }
 
   function monthChart() {
-    var data = monthlySeries(6);
+    var data = monthlySeries(chartMonths);
     var max = niceMax(data.reduce(function (m, d) { return Math.max(m, d.in, d.out); }, 0));
 
     var W = 560, H = 208;
     var padL = 46, padR = 10, padT = 12, padB = 26;
     var plotW = W - padL - padR, plotH = H - padT - padB;
     var bandW = plotW / data.length;
-    var barW = Math.min(22, (bandW - 14) / 2);
+    var barW = Math.min(22, Math.max(5, (bandW - 10) / 2));
     var gap = 2; // Flächenabstand zwischen benachbarten Balken
 
     function y(cents) { return padT + plotH - (cents / max) * plotH; }
@@ -895,8 +919,11 @@
       var cx = bx + bandW / 2;
       svg.push(bar(cx - barW - gap / 2, d.in, 'url(#mk-grad-in)'));
       svg.push(bar(cx + gap / 2, d.out, 'url(#mk-grad-out)'));
-      svg.push('<text class="tick" x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle">' +
-        esc(monthLabel(d.key)) + '</text>');
+      // Bei zwölf Monaten würden sich die Beschriftungen überlappen.
+      if (data.length <= 6 || i % 2 === 1) {
+        svg.push('<text class="tick" x="' + cx + '" y="' + (H - 8) + '" text-anchor="middle">' +
+          esc(monthLabel(d.key)) + '</text>');
+      }
       svg.push('<rect class="band-hit" x="' + bx + '" y="' + padT + '" width="' + bandW +
         '" height="' + plotH + '" data-band="' + i + '"/>');
     });
@@ -911,9 +938,26 @@
       }).join('') +
       '</tbody></table></details>';
 
-    return '<section class="card">' +
-      '<div class="card-head"><h2>Letzte 6 Monate</h2></div>' +
-      '<div class="legend" style="padding-top:8px">' +
+    var summe = data.reduce(function (a, d) { return a + d.in - d.out; }, 0);
+
+    return '<section class="card g-main">' +
+      '<div class="card-head">' +
+        '<div>' +
+          '<p class="hint">Verlauf</p>' +
+          '<h2>Einnahmen und Ausgaben</h2>' +
+        '</div>' +
+        '<div class="chips chips-sm">' +
+          [6, 12].map(function (n) {
+            return '<button class="chip" data-months="' + n + '" aria-pressed="' +
+              (chartMonths === n ? 'true' : 'false') + '">' + n + ' Monate</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+      '<div class="card-lead">' +
+        '<span class="lead-value num ' + (summe < 0 ? 'neg' : 'pos') + '">' + moneySigned(summe) + '</span>' +
+        '<span class="hint">Saldo im Zeitraum</span>' +
+      '</div>' +
+      '<div class="legend">' +
         '<span><i style="background:var(--series-in)"></i>Einnahmen</span>' +
         '<span><i style="background:var(--series-out)"></i>Ausgaben</span>' +
       '</div>' +
@@ -927,7 +971,7 @@
     var wrap = $('[data-chart]', root);
     if (!wrap) return;
     var tip = $('[data-tip]', wrap);
-    var data = monthlySeries(6);
+    var data = monthlySeries(chartMonths);
 
     function show(i, hitRect, clientY) {
       var d = data[i];
@@ -1011,53 +1055,96 @@
     }).filter(function (x) { return x.open > 0; })
       .sort(function (a, b) { return b.open - a.open; });
 
-    var html = '';
+    var kategorien = expensesByCategory().slice(0, 5);
+    var maxKat = kategorien.length ? kategorien[0].cents : 0;
+    var strafen = fineRanking().slice(0, 5);
+    var maxStrafe = strafen.length ? strafen[0].cents : 0;
 
-    html += '<section class="hero">' +
-      '<div class="label">Kassenstand</div>' +
-      '<div class="value ' + (bal < 0 ? 'neg' : '') + '">' + money(bal) + '</div>' +
-      '<div class="meta">' + esc(state.team.name) + ' · Saison ' + esc(state.team.season) +
-        ' · ' + state.transactions.length + ' Buchungen</div>' +
-      '</section>';
+    var html = '<div class="dash">';
 
-    html += '<div class="tiles">' +
-      '<div class="tile"><div class="label">Einnahmen</div><div class="value pos">' + money(tot.in) + '</div>' +
-        '<div class="sub">verbucht</div></div>' +
-      '<div class="tile"><div class="label">Ausgaben</div><div class="value neg">' + money(tot.out) + '</div>' +
-        '<div class="sub">verbucht</div></div>' +
-      '<div class="tile"><div class="label">Offene Forderungen</div><div class="value">' + money(tot.openIn) + '</div>' +
-        '<div class="sub">Spieler an Kasse</div></div>' +
-      '<div class="tile"><div class="label">Offene Auslagen</div><div class="value">' + money(tot.openOut) + '</div>' +
-        '<div class="sub">Kasse an Spieler</div></div>' +
-      '</div>';
-
+    /* Links oben: der Verlauf — die größte Fläche für die wichtigste Grafik. */
     html += monthChart();
 
-    if (debtors.length) {
-      html += '<section class="card">' +
-        '<div class="card-head"><h2>Offene Beträge</h2>' +
-          '<a class="btn btn-sm btn-ghost" href="#/spieler">Alle Spieler</a></div>' +
-        '<div class="list" style="margin-top:10px">' +
-        debtors.slice(0, 5).map(function (d) {
-          return '<button class="list-row" data-member="' + d.m.id + '">' +
-            '<span class="avatar">' + esc(initials(d.m.name)) + '</span>' +
-            '<span class="grow"><span class="title">' + esc(d.m.name) + '</span>' +
-            '<span class="sub">' + d.count + ' offene Buchung' + (d.count === 1 ? '' : 'en') + '</span></span>' +
-            '<span class="end"><span class="amount num">' + money(d.open) + '</span></span></button>';
-        }).join('') +
-        '</div></section>';
-    }
+    /* Rechts oben: Kassenstand mit den Kennzahlen darunter. */
+    html += '<section class="card g-side balance">' +
+      '<div class="card-body">' +
+        '<p class="hint">Kassenstand</p>' +
+        '<div class="bal-value ' + (bal < 0 ? 'neg' : '') + '">' + money(bal) + '</div>' +
+        '<p class="bal-meta">' + esc(state.team.name) + ' · Saison ' + esc(state.team.season) + '</p>' +
+        '<div class="statlist">' +
+          statRow('Einnahmen', money(tot.in), 'pos') +
+          statRow('Ausgaben', money(tot.out), 'neg') +
+          statRow('Offene Forderungen', money(tot.openIn), '') +
+          statRow('Offene Auslagen', money(tot.openOut), '') +
+          statRow('Buchungen', String(state.transactions.length), '') +
+        '</div>' +
+        '<button class="btn btn-primary btn-block" data-action="new-transaction">Neue Buchung</button>' +
+      '</div></section>';
+
+    /* Volle Breite: wer der Kasse noch etwas schuldet. */
+    html += '<section class="card g-full">' +
+      '<div class="card-head"><h2>Offene Beträge</h2>' +
+        '<a class="btn btn-sm btn-ghost" href="#/spieler">Alle Spieler</a></div>' +
+      (debtors.length
+        ? '<div class="dthead"><span class="sp"></span><span>Spieler</span><span>Offen</span></div>' +
+          '<div class="list">' +
+          debtors.slice(0, 6).map(function (d) {
+            return '<button class="list-row" data-member="' + d.m.id + '">' +
+              '<span class="avatar">' + esc(initials(d.m.name)) + '</span>' +
+              '<span class="grow"><span class="title">' + esc(d.m.name) + '</span>' +
+              '<span class="sub">' + d.count + ' offene Buchung' + (d.count === 1 ? '' : 'en') + '</span></span>' +
+              '<span class="end"><span class="amount num">' + money(d.open) + '</span></span></button>';
+          }).join('') + '</div>'
+        : '<div class="empty"><strong>Alles beglichen</strong>Kein Spieler schuldet der Kasse gerade etwas.</div>') +
+      '</section>';
+
+    /* Untere Reihe: drei schmale Karten wie in der Vorlage. */
+    html += '<section class="card">' +
+      '<div class="card-head"><h2>Ausgaben nach Kategorie</h2></div>' +
+      '<div class="card-body">' +
+      (kategorien.length
+        ? kategorien.map(function (k) {
+          return '<div class="meter">' +
+            '<div class="meter-head"><span>' + esc(k.label) + '</span>' +
+              '<b class="num">' + money(k.cents) + '</b></div>' +
+            '<div class="meter-track"><span style="width:' +
+              Math.max(4, Math.round(k.cents / maxKat * 100)) + '%"></span></div>' +
+            '</div>';
+        }).join('')
+        : '<p class="hint">Noch keine Ausgaben verbucht.</p>') +
+      '</div></section>';
 
     html += '<section class="card">' +
       '<div class="card-head"><h2>Letzte Buchungen</h2>' +
         '<a class="btn btn-sm btn-ghost" href="#/buchungen">Alle</a></div>' +
-      '<div class="list" style="margin-top:10px">' +
-      (recent.length ? recent.map(transactionRow).join('')
+      '<div class="list">' +
+      (recent.length ? recent.slice(0, 5).map(transactionRow).join('')
         : '<div class="empty"><strong>Noch nichts gebucht</strong>Leg mit „Neue Buchung“ los — oder lade unter „Mehr“ Beispieldaten.</div>') +
       '</div></section>';
 
+    html += '<section class="card">' +
+      '<div class="card-head"><h2>Strafenkasse</h2></div>' +
+      (strafen.length
+        ? '<div class="list">' + strafen.map(function (s, i) {
+          return '<button class="list-row" data-member="' + s.id + '">' +
+            '<span class="avatar rank' + (i === 0 ? ' first' : '') + '">' + (i + 1) + '</span>' +
+            '<span class="grow"><span class="title">' + esc(s.name) + '</span>' +
+              '<div class="meter-track slim"><span style="width:' +
+                Math.max(6, Math.round(s.cents / maxStrafe * 100)) + '%"></span></div></span>' +
+            '<span class="end"><span class="amount num">' + money(s.cents) + '</span></span>' +
+            '</button>';
+        }).join('') + '</div>'
+        : '<div class="empty"><strong>Noch keine Strafen</strong>Unter „Strafen“ buchst du die erste.</div>') +
+      '</section>';
+
+    html += '</div>';
     return html;
   };
+
+  function statRow(label, value, tone) {
+    return '<div class="statrow"><span>' + esc(label) + '</span>' +
+      '<b class="num ' + (tone || '') + '">' + esc(value) + '</b></div>';
+  }
 
   var txFilter = { q: '', type: 'all', status: 'all', member: 'all' };
 
@@ -1451,9 +1538,18 @@
 
     var view = $('#view');
     view.innerHTML = views[id]();
-    if (id === 'uebersicht') wireChart(view);
+    if (id === 'uebersicht') { wireChart(view); wireChartRange(view); }
     if (id === 'buchungen') wireFilters(view);
     if (id === 'mehr') wireSettings(view);
+  }
+
+  function wireChartRange(root) {
+    root.addEventListener('click', function (e) {
+      var chip = e.target.closest('[data-months]');
+      if (!chip) return;
+      chartMonths = parseInt(chip.dataset.months, 10);
+      render();
+    });
   }
 
   function wireFilters(root) {
@@ -1552,8 +1648,10 @@
      View Transitions kennt — sonst wird einfach direkt neu gezeichnet. */
   window.addEventListener('hashchange', function () {
     var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (document.startViewTransition && !reduced) document.startViewTransition(render);
-    else render();
+    // Beim Wechsel oben anfangen — sonst landet man mitten in der neuen Liste.
+    var zeichnen = function () { render(); window.scrollTo(0, 0); };
+    if (document.startViewTransition && !reduced) document.startViewTransition(zeichnen);
+    else zeichnen();
   });
 
   /* ---------------------------------------------------------------------

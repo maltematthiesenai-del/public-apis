@@ -40,9 +40,15 @@ Offline-Cache fehlen dort, dafür braucht es die Einzeldateien auf einem Server.
 
 ## Was die App kann
 
-**Übersicht** — Kassenstand als große Zahl, Einnahmen und Ausgaben, offene
-Forderungen und offene Auslagen, ein Balkendiagramm der letzten sechs Monate
-(mit Tabellenansicht) sowie die letzten Buchungen und die größten Außenstände.
+**Übersicht** — ein Dashboard aus Karten, das sich auf breiten Schirmen in drei
+Spalten legt und auf dem Handy zu einer Spalte stapelt (dort steht der
+Kassenstand oben):
+
+- Verlaufsdiagramm über 6 oder 12 Monate mit Saldo des Zeitraums und
+  Tabellenansicht
+- Kassenstand mit Einnahmen, Ausgaben, offenen Forderungen und Auslagen
+- Offene Beträge je Spieler als Tabelle
+- Ausgaben nach Kategorie, letzte Buchungen, Strafenkasse nach Spielern
 
 **Buchungen** — jede Buchung hat Betrag, Kategorie, Datum, optional einen
 Spieler, eine Notiz und einen Status. Suchen und filtern nach Art, Status und
