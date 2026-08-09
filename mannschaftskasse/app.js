@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-09.1';
+  var APP_VERSION = '2026-08-09.2';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Sonstige Einnahme'],
@@ -385,6 +385,25 @@
         esc(m.name) + (m.active === false ? ' (inaktiv)' : '') + '</option>');
     });
     return opts.join('');
+  }
+
+  /* Trikotnummer als Zahl. Das Feld ist frei beschreibbar, deshalb werden
+     Nicht-Ziffern ausgesiebt; wer keine Nummer hat, wandert ans Ende. */
+  function jerseyValue(m) {
+    var n = parseInt(String(m.number || '').replace(/\D/g, ''), 10);
+    return isFinite(n) ? n : Infinity;
+  }
+
+  /* Reihenfolge des Kaders: aktive Spieler zuerst, darin nach Trikotnummer
+     aufsteigend, ohne Nummer zuletzt, bei Gleichstand nach Namen. */
+  function squadOrder() {
+    return state.members.slice().sort(function (a, b) {
+      var aAktiv = a.active !== false, bAktiv = b.active !== false;
+      if (aAktiv !== bAktiv) return aAktiv ? -1 : 1;
+      var na = jerseyValue(a), nb = jerseyValue(b);
+      if (na !== nb) return na - nb;
+      return a.name.localeCompare(b.name, 'de');
+    });
   }
 
   function activeFirst() {
@@ -1203,7 +1222,7 @@
   }
 
   views.spieler = function () {
-    var list = activeFirst();
+    var list = squadOrder();
     var tot = totals();
 
     var html = '<div class="tiles" style="grid-template-columns:repeat(2,minmax(0,1fr))">' +

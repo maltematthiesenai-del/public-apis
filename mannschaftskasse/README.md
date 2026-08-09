@@ -55,7 +55,8 @@ Spieler, eine Notiz und einen Status. Suchen und filtern nach Art, Status und
 Spieler; nach Monaten gruppiert. Antippen öffnet die Buchung zum Bearbeiten,
 Löschen lässt sich rückgängig machen.
 
-**Spieler** — Kader mit Trikotnummer, pro Spieler die offene Summe und die
+**Spieler** — Kader nach Trikotnummer sortiert (aufsteigend, ohne Nummer
+zuletzt, inaktive Spieler ganz am Ende), pro Spieler die offene Summe und die
 komplette Buchungshistorie. Ein Tipp aufs Detail bucht direkt etwas Neues für
 diesen Spieler.
 
