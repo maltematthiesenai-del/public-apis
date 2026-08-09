@@ -46,9 +46,12 @@ Kassenstand oben):
 
 - Verlaufsdiagramm über 6 oder 12 Monate mit Saldo des Zeitraums und
   Tabellenansicht
-- Kassenstand mit Einnahmen, Ausgaben, offenen Forderungen und Auslagen
-- Offene Beträge je Spieler als Tabelle
+- Kassenstand mit Veränderung der letzten 30 Tage und den Kennzahlen
+- Offene Beträge je Spieler als Tabelle mit Anteilsbalken
 - Ausgaben nach Kategorie, letzte Buchungen, Strafenkasse nach Spielern
+
+Auf breiten Schirmen liegt die App als gerundetes Panel auf der Seitenfläche;
+die Seitenleiste trennt die Hauptnavigation von der unteren Gruppe ab.
 
 **Buchungen** — jede Buchung hat Betrag, Kategorie, Datum, optional einen
 Spieler, eine Notiz und einen Status. Suchen und filtern nach Art, Status und

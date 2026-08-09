@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-09.2';
+  var APP_VERSION = '2026-08-09.3';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Sonstige Einnahme'],
@@ -24,12 +24,14 @@
   // Kategorien, die typischerweise erst noch bezahlt werden müssen.
   var DEFAULT_OPEN_CATEGORIES = ['Strafe', 'Mitgliedsbeitrag'];
 
+  // `foot` trennt in der Seitenleiste die untere Gruppe ab; in der
+  // Tab-Leiste am unteren Rand stehen weiterhin alle Einträge nebeneinander.
   var NAV = [
     { id: 'uebersicht', label: 'Übersicht', icon: 'i-home' },
     { id: 'buchungen', label: 'Buchungen', icon: 'i-list' },
     { id: 'spieler', label: 'Spieler', icon: 'i-users' },
     { id: 'strafen', label: 'Strafen', icon: 'i-card' },
-    { id: 'mehr', label: 'Mehr', icon: 'i-more' }
+    { id: 'mehr', label: 'Mehr', icon: 'i-more', foot: true }
   ];
 
   var DEFAULT_FINES = [
@@ -189,6 +191,16 @@
      ------------------------------------------------------------------ */
 
   function signedCents(t) { return t.type === 'in' ? t.cents : -t.cents; }
+
+  // Veränderung des Kassenstands in den letzten n Tagen.
+  function balanceChange(days) {
+    var d = new Date();
+    d.setDate(d.getDate() - days);
+    var seit = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    return state.transactions.reduce(function (sum, t) {
+      return (t.status === 'paid' && String(t.date) >= seit) ? sum + signedCents(t) : sum;
+    }, 0);
+  }
 
   function balanceCents() {
     return state.transactions.reduce(function (sum, t) {
@@ -958,23 +970,25 @@
       '</tbody></table></details>';
 
     var summe = data.reduce(function (a, d) { return a + d.in - d.out; }, 0);
+    var einM = data.reduce(function (a, d) { return a + d.in; }, 0);
+    var ausM = data.reduce(function (a, d) { return a + d.out; }, 0);
 
+    /* Kopf wie in der Vorlage: kleine Bezeichnung, darunter die Bestandteile,
+       dann die große Zahl — und erst danach die Pillen für den Zeitraum. */
     return '<section class="card g-main">' +
-      '<div class="card-head">' +
-        '<div>' +
-          '<p class="hint">Verlauf</p>' +
-          '<h2>Einnahmen und Ausgaben</h2>' +
-        '</div>' +
+      '<div class="card-top">' +
+        '<p class="card-eyebrow">Ein- und Ausgaben</p>' +
+        '<p class="card-sub">' +
+          '<span class="pos num">' + moneySigned(einM) + '</span> Einnahmen · ' +
+          '<span class="neg num">' + moneySigned(-ausM) + '</span> Ausgaben' +
+        '</p>' +
+        '<div class="card-figure num ' + (summe < 0 ? 'neg' : '') + '">' + moneySigned(summe) + '</div>' +
         '<div class="chips chips-sm">' +
           [6, 12].map(function (n) {
             return '<button class="chip" data-months="' + n + '" aria-pressed="' +
               (chartMonths === n ? 'true' : 'false') + '">' + n + ' Monate</button>';
           }).join('') +
         '</div>' +
-      '</div>' +
-      '<div class="card-lead">' +
-        '<span class="lead-value num ' + (summe < 0 ? 'neg' : 'pos') + '">' + moneySigned(summe) + '</span>' +
-        '<span class="hint">Saldo im Zeitraum</span>' +
       '</div>' +
       '<div class="legend">' +
         '<span><i style="background:var(--series-in)"></i>Einnahmen</span>' +
@@ -1084,15 +1098,25 @@
     /* Links oben: der Verlauf — die größte Fläche für die wichtigste Grafik. */
     html += monthChart();
 
-    /* Rechts oben: Kassenstand mit den Kennzahlen darunter. */
+    /* Rechts oben: Kassenstand mit Veränderung und den Kennzahlen darunter. */
+    var delta = balanceChange(30);
     html += '<section class="card g-side balance">' +
       '<div class="card-body">' +
-        '<p class="hint">Kassenstand</p>' +
-        '<div class="bal-value ' + (bal < 0 ? 'neg' : '') + '">' + money(bal) + '</div>' +
-        '<p class="bal-meta">' + esc(state.team.name) + ' · Saison ' + esc(state.team.season) + '</p>' +
-        '<div class="statlist">' +
+        '<p class="card-eyebrow">Kassenstand</p>' +
+        '<div class="bal-row">' +
+          '<div class="bal-value ' + (bal < 0 ? 'neg' : '') + '">' + money(bal) + '</div>' +
+          (delta !== 0
+            ? '<span class="delta ' + (delta > 0 ? 'up' : 'down') + '">' +
+                (delta > 0 ? '▲' : '▼') + ' <span class="num">' + money(Math.abs(delta)) + '</span></span>'
+            : '') +
+        '</div>' +
+        '<p class="bal-meta">' + esc(state.team.name) + ' · Saison ' + esc(state.team.season) +
+          (delta !== 0 ? ' · Veränderung in 30 Tagen' : '') + '</p>' +
+        '<div class="statbox">' +
           statRow('Einnahmen', money(tot.in), 'pos') +
           statRow('Ausgaben', money(tot.out), 'neg') +
+        '</div>' +
+        '<div class="statbox">' +
           statRow('Offene Forderungen', money(tot.openIn), '') +
           statRow('Offene Auslagen', money(tot.openOut), '') +
           statRow('Buchungen', String(state.transactions.length), '') +
@@ -1105,14 +1129,22 @@
       '<div class="card-head"><h2>Offene Beträge</h2>' +
         '<a class="btn btn-sm btn-ghost" href="#/spieler">Alle Spieler</a></div>' +
       (debtors.length
-        ? '<div class="dthead"><span class="sp"></span><span>Spieler</span><span>Offen</span></div>' +
-          '<div class="list">' +
+        ? '<div class="dtable">' +
+          '<div class="dtable-head">' +
+            '<span>Spieler</span><span>Offene Buchungen</span><span>Anteil</span><span>Offen</span>' +
+          '</div>' +
           debtors.slice(0, 6).map(function (d) {
-            return '<button class="list-row" data-member="' + d.m.id + '">' +
-              '<span class="avatar">' + esc(initials(d.m.name)) + '</span>' +
-              '<span class="grow"><span class="title">' + esc(d.m.name) + '</span>' +
-              '<span class="sub">' + d.count + ' offene Buchung' + (d.count === 1 ? '' : 'en') + '</span></span>' +
-              '<span class="end"><span class="amount num">' + money(d.open) + '</span></span></button>';
+            return '<button class="dtable-row" data-member="' + d.m.id + '">' +
+              '<span class="cell-name">' +
+                '<span class="avatar">' + esc(initials(d.m.name)) + '</span>' +
+                '<span class="cell-title">' + esc(d.m.name) +
+                  (d.m.number ? ' <span class="hint">· ' + esc(d.m.number) + '</span>' : '') + '</span>' +
+              '</span>' +
+              '<span class="cell-count">' + d.count + ' Buchung' + (d.count === 1 ? '' : 'en') + '</span>' +
+              '<span class="cell-share"><span class="meter-track slim"><span style="width:' +
+                Math.max(6, Math.round(d.open / debtors[0].open * 100)) + '%"></span></span></span>' +
+              '<span class="cell-amount num">' + money(d.open) + '</span>' +
+              '</button>';
           }).join('') + '</div>'
         : '<div class="empty"><strong>Alles beglichen</strong>Kein Spieler schuldet der Kasse gerade etwas.</div>') +
       '</section>';
@@ -1534,11 +1566,21 @@
     return views[id] ? id : 'uebersicht';
   }
 
+  function navLink(n, id) {
+    return '<a href="#/' + n.id + '" class="' + (n.id === id ? 'active' : '') + '">' +
+      icon(n.icon) + '<span>' + n.label + '</span></a>';
+  }
+
   function navHTML(id) {
-    return NAV.map(function (n) {
-      return '<a href="#/' + n.id + '" class="' + (n.id === id ? 'active' : '') + '">' +
-        icon(n.icon) + '<span>' + n.label + '</span></a>';
-    }).join('');
+    return NAV.map(function (n) { return navLink(n, id); }).join('');
+  }
+
+  // Seitenleiste: Hauptgruppe oben, abgesetzte Gruppe unten.
+  function sidebarHTML(id) {
+    var oben = NAV.filter(function (n) { return !n.foot; });
+    var unten = NAV.filter(function (n) { return n.foot; });
+    return '<div class="nav-group">' + oben.map(function (n) { return navLink(n, id); }).join('') + '</div>' +
+      '<div class="nav-group nav-foot">' + unten.map(function (n) { return navLink(n, id); }).join('') + '</div>';
   }
 
   function render() {
@@ -1549,8 +1591,8 @@
     $('#viewTitle').textContent = title;
     $('#brandTeam').textContent = state.team.name;
     $('#brandSeason').textContent = 'Saison ' + state.team.season;
-    $('#navDesktop').innerHTML = navHTML(id);
-    $('#navMobile').innerHTML = navHTML(id, true);
+    $('#navDesktop').innerHTML = sidebarHTML(id);
+    $('#navMobile').innerHTML = navHTML(id);
 
     // Jede Ansicht bringt ihre eigenen Aktionen mit; die Kopfzeile bleibt ruhig.
     $('#topbarActions').innerHTML = '';
