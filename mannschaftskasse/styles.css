@@ -805,3 +805,24 @@ table.data th { color: var(--accent-text); font-weight: 620; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
+
+/* ==========================================================================
+   Offene Forderungen abhaken
+   ========================================================================== */
+
+/* Der Abhaken-Knopf steht neben der Zeile. Ein Knopf im Knopf wäre
+   ungültiges Markup, deshalb sind es zwei Geschwister in einem Rahmen. */
+.tx-row { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
+.list > .tx-row:first-child { border-top: 0; }
+.tx-row > .list-row { border-top: 0; flex: 1; min-width: 0; }
+
+.pay-btn {
+  flex: none; width: 58px;
+  display: grid; place-items: center;
+  border: 0; border-left: 1px solid var(--line);
+  background: none; color: var(--accent-text); cursor: pointer;
+  transition: background .16s ease, transform .15s var(--spring);
+}
+.pay-btn:hover { background: var(--accent-soft); }
+.pay-btn:active { transform: scale(.9); }
+.pay-btn .ic { width: 21px; height: 21px; stroke-width: 2.6; }

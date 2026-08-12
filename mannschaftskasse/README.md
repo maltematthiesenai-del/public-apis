@@ -94,8 +94,19 @@ Der Unterschied ist der Kern der App:
   **Forderung** (ein Spieler schuldet der Kasse etwas), eine offene Ausgabe eine
   **Auslage** (die Kasse schuldet jemandem etwas, der vorgestreckt hat).
 
-Strafen und Beiträge werden deshalb standardmäßig als *offen* angelegt. Zahlt der
-Spieler, wird die Buchung auf *bezahlt* gesetzt und wandert in den Kassenstand.
+Strafen und Beiträge werden deshalb standardmäßig als *offen* angelegt.
+
+**Abhaken:** Jede offene Zeile trägt rechts einen Haken. Ein Tipp darauf bucht
+den Betrag als Einnahme, entfernt ihn aus den offenen Forderungen und hält den
+Tag der Zahlung fest — versehentlich abgehakt lässt sich über „Rückgängig" im
+Hinweis sofort zurücknehmen.
+
+Der Zahltag wird getrennt vom Buchungstag geführt: Eine Strafe aus dem März,
+die im August bezahlt wird, erscheint im Diagramm im August. Im Buchungsdialog
+lässt sich das Feld „Bezahlt am" jederzeit korrigieren.
+
+Alle Buchungen bleiben nach dem Anlegen änderbar — antippen öffnet sie zum
+Bearbeiten oder Löschen.
 
 ## Daten & Sicherung
 

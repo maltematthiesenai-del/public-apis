@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-10.1';
+  var APP_VERSION = '2026-08-10.2';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -272,7 +272,7 @@
     d.setDate(d.getDate() - days);
     var seit = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     return seasonTx().reduce(function (sum, t) {
-      return (t.status === 'paid' && String(t.date) >= seit) ? sum + signedCents(t) : sum;
+      return (t.status === 'paid' && String(cashDate(t)) >= seit) ? sum + signedCents(t) : sum;
     }, 0);
   }
 
@@ -361,7 +361,7 @@
     keys.forEach(function (k) { map[k] = { key: k, in: 0, out: 0 }; });
     seasonTx().forEach(function (t) {
       if (t.status !== 'paid') return;
-      var k = String(t.date).slice(0, 7);
+      var k = String(cashDate(t)).slice(0, 7);
       if (map[k]) map[k][t.type] += t.cents;
     });
     return keys.map(function (k) { return map[k]; });
@@ -556,6 +556,12 @@
           '<span class="hint" data-status-hint></span>' +
         '</div>' +
 
+        '<div class="field" data-paid-wrap>' +
+          '<label for="f-paid">Bezahlt am</label>' +
+          '<input id="f-paid" type="date" value="' + esc(t.paidDate || t.date) + '">' +
+          '<span class="hint">Bestimmt, in welchem Monat das Geld im Diagramm auftaucht.</span>' +
+        '</div>' +
+
         '<div class="field">' +
           '<label for="f-note">Notiz <span class="hint">(optional)</span></label>' +
           '<input id="f-note" type="text" value="' + esc(t.note) + '" placeholder="z. B. Auswärtsspiel Musterdorf">' +
@@ -580,8 +586,10 @@
           el.textContent = s === 'paid'
             ? 'Das Geld ist geflossen — die Buchung zählt zum Kassenstand.'
             : (typeNow === 'in'
-              ? 'Der Spieler schuldet der Kasse den Betrag noch.'
+              ? 'Offene Forderung — der Betrag zählt erst nach dem Abhaken zum Kassenstand.'
               : 'Die Kasse schuldet den Betrag noch (z. B. verauslagt).');
+          // Ein Zahlungsdatum gibt es nur, wenn auch bezahlt wurde.
+          $('[data-paid-wrap]', modal).style.display = s === 'paid' ? '' : 'none';
         }
 
         wireSegmented(modal, 'type', function (v) {
@@ -625,6 +633,8 @@
             note: $('#f-note', modal).value.trim(),
             status: segValue(modal, 'status')
           };
+          // Zahlungsdatum nur bei bezahlten Buchungen führen.
+          if (rec.status === 'paid') rec.paidDate = $('#f-paid', modal).value || rec.date;
           if (existing) {
             var i = state.transactions.findIndex(function (x) { return x.id === existing.id; });
             state.transactions[i] = rec;
@@ -653,13 +663,38 @@
     });
   }
 
+  /* Eine offene Forderung abhaken: Sie zählt ab sofort als Einnahme im
+     Kassenstand und verschwindet aus den offenen Beträgen. Der Tag der
+     Zahlung wird getrennt vom Tag der Forderung festgehalten — sonst
+     erschiene das Geld im Diagramm in dem Monat, in dem die Forderung
+     entstanden ist, statt in dem, in dem sie beglichen wurde. */
   function toggleStatus(id) {
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
-    t.status = t.status === 'open' ? 'paid' : 'open';
+
+    var vorher = { status: t.status, paidDate: t.paidDate };
+    if (t.status === 'open') {
+      t.status = 'paid';
+      t.paidDate = todayISO();
+    } else {
+      t.status = 'open';
+      delete t.paidDate;
+    }
+    var bezahlt = t.status === 'paid';
     commit();
-    toast(t.status === 'paid' ? 'Als bezahlt markiert.' : 'Als offen markiert.');
+
+    toast(bezahlt
+      ? (t.type === 'in' ? 'Bezahlt — ' + money(t.cents) + ' als Einnahme gebucht.' : 'Als erstattet abgehakt.')
+      : 'Wieder als offen gesetzt.',
+      'Rückgängig', function () {
+        t.status = vorher.status;
+        if (vorher.paidDate) t.paidDate = vorher.paidDate; else delete t.paidDate;
+        commit();
+      });
   }
+
+  // Für den Geldfluss zählt der Tag der Zahlung, sonst der Tag der Buchung.
+  function cashDate(t) { return t.paidDate || t.date; }
 
   /* ---------------------------------------------------------------------
      Spieler-Dialog
@@ -1253,7 +1288,10 @@
     /* Unterzeile knapp halten: Steht kein Spieler dabei, sagt die Kategorie am
        meisten — sonst der Name. Alles Weitere steht beim Öffnen der Buchung. */
     var sub = [fmtDate(t.date), name || t.category].join(' · ');
-    return '<button class="list-row" data-tx="' + t.id + '">' +
+    if (t.status === 'paid' && t.paidDate && t.paidDate !== t.date) {
+      sub += ' · bezahlt ' + fmtDate(t.paidDate);
+    }
+    var zeile = '<button class="list-row" data-tx="' + t.id + '">' +
       '<span class="avatar ' + t.type + '">' + (t.type === 'in' ? '+' : '−') + '</span>' +
       '<span class="grow">' +
         '<span class="title">' + esc(t.note || t.category) + '</span>' +
@@ -1265,6 +1303,15 @@
         (t.status === 'open' ? '<span class="badge open">offen</span>' : '') +
       '</span>' +
       '</button>';
+
+    // Der Abhaken-Knopf steht neben der Zeile, nicht darin: Ein Knopf im Knopf
+    // wäre ungültiges Markup und würde unzuverlässig reagieren.
+    if (t.status !== 'open') return '<div class="tx-row">' + zeile + '</div>';
+    return '<div class="tx-row">' + zeile +
+      '<button class="pay-btn" data-pay="' + t.id + '" title="Als bezahlt abhaken" ' +
+        'aria-label="' + esc(t.note || t.category) + ' als bezahlt abhaken">' +
+        icon('i-check') + '</button>' +
+      '</div>';
   }
 
   /* ---------------------------------------------------------------------
@@ -1417,14 +1464,16 @@
 
     var html = '<section class="filterbar">' +
       '<span class="search">' + icon('i-search') +
-        '<input type="search" id="q" placeholder="Suchen…" value="' + esc(txFilter.q) + '"></span>' +
-      '<select id="f-type">' +
+        '<input type="search" id="flt-q" placeholder="Suchen…" value="' + esc(txFilter.q) + '"></span>' +
+      // Eigene Namen: Der Buchungsdialog benutzt f-… — doppelte IDs im selben
+      // Dokument sind ungültig und lassen Beschriftungen ins Leere zeigen.
+      '<select id="flt-type">' +
         opt('all', 'Alle Arten', txFilter.type) + opt('in', 'Einnahmen', txFilter.type) + opt('out', 'Ausgaben', txFilter.type) +
       '</select>' +
-      '<select id="f-status">' +
+      '<select id="flt-status">' +
         opt('all', 'Alle', txFilter.status) + opt('open', 'Nur offen', txFilter.status) + opt('paid', 'Nur bezahlt', txFilter.status) +
       '</select>' +
-      '<select id="f-member">' + opt('all', 'Alle Spieler', txFilter.member) +
+      '<select id="flt-member">' + opt('all', 'Alle Spieler', txFilter.member) +
         state.members.map(function (m) { return opt(m.id, m.name, txFilter.member); }).join('') +
       '</select>' +
       '</section>';
@@ -1570,9 +1619,9 @@
       '<div class="card-head"><h2>Darstellung</h2></div>' +
       '<div class="card-body">' +
         '<div class="chips">' +
-          '<button class="chip" data-theme="auto" aria-pressed="' + (theme === 'auto') + '">Automatisch</button>' +
-          '<button class="chip" data-theme="light" aria-pressed="' + (theme === 'light') + '">Hell</button>' +
-          '<button class="chip" data-theme="dark" aria-pressed="' + (theme === 'dark') + '">Dunkel</button>' +
+          '<button class="chip" data-set-theme="auto" aria-pressed="' + (theme === 'auto') + '">Automatisch</button>' +
+          '<button class="chip" data-set-theme="light" aria-pressed="' + (theme === 'light') + '">Hell</button>' +
+          '<button class="chip" data-set-theme="dark" aria-pressed="' + (theme === 'dark') + '">Dunkel</button>' +
         '</div>' +
       '</div></section>';
 
@@ -1833,48 +1882,55 @@
 
     var view = $('#view');
     view.innerHTML = views[id]();
-    if (id === 'uebersicht') { wireChart(view); wireChartRange(view); }
+    if (id === 'uebersicht') wireChart(view);
     if (id === 'buchungen') wireFilters(view);
-    if (id === 'mehr') wireSettings(view);
   }
 
-  function wireChartRange(root) {
-    root.addEventListener('click', function (e) {
-      var chip = e.target.closest('[data-months]');
-      if (!chip) return;
-      chartMonths = parseInt(chip.dataset.months, 10);
-      render();
+  /* Klicks innerhalb der Ansicht, die keinen Dialog öffnen. Einmalig an das
+     bestehende #view gehängt — würde das bei jedem Zeichnen geschehen,
+     sammelten sich mit jedem Ansichtswechsel weitere Zuhörer an.
+
+     Wichtig: Das Merkmal für die Designwahl heißt `data-set-theme`, nicht
+     `data-theme`. Auf `data-theme` würde closest() bis zum <html>-Element
+     durchlaufen, das dieses Merkmal selbst trägt — dann hätte jeder Klick
+     die Ansicht neu gezeichnet und dabei die angeklickte Zeile aus dem
+     Dokument gerissen, noch bevor der Klick den Dialog erreicht. */
+  function wireView() {
+    $('#view').addEventListener('click', function (e) {
+      var monat = e.target.closest('[data-months]');
+      if (monat) {
+        chartMonths = parseInt(monat.dataset.months, 10);
+        render();
+        return;
+      }
+
+      var chip = e.target.closest('[data-set-theme]');
+      if (chip) {
+        var v = chip.dataset.setTheme;
+        // „Automatisch" wird ausdrücklich gespeichert — ohne Eintrag gilt Dunkel.
+        localStorage.setItem(THEME_KEY, v);
+        if (v === 'auto') document.documentElement.removeAttribute('data-theme');
+        else document.documentElement.setAttribute('data-theme', v);
+        render();
+      }
     });
   }
 
   function wireFilters(root) {
-    var q = $('#q', root);
+    var q = $('#flt-q', root);
     var timer = null;
     q.addEventListener('input', function () {
       clearTimeout(timer);
       timer = setTimeout(function () {
         txFilter.q = q.value;
         render();
-        var el = $('#q');
+        var el = $('#flt-q');
         if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
       }, 220);
     });
-    $('#f-type', root).addEventListener('change', function (e) { txFilter.type = e.target.value; render(); });
-    $('#f-status', root).addEventListener('change', function (e) { txFilter.status = e.target.value; render(); });
-    $('#f-member', root).addEventListener('change', function (e) { txFilter.member = e.target.value; render(); });
-  }
-
-  function wireSettings(root) {
-    root.addEventListener('click', function (e) {
-      var chip = e.target.closest('[data-theme]');
-      if (!chip) return;
-      var v = chip.dataset.theme;
-      // „Automatisch" wird ausdrücklich gespeichert — ohne Eintrag gilt Dunkel.
-      localStorage.setItem(THEME_KEY, v);
-      if (v === 'auto') document.documentElement.removeAttribute('data-theme');
-      else document.documentElement.setAttribute('data-theme', v);
-      render();
-    });
+    $('#flt-type', root).addEventListener('change', function (e) { txFilter.type = e.target.value; render(); });
+    $('#flt-status', root).addEventListener('change', function (e) { txFilter.status = e.target.value; render(); });
+    $('#flt-member', root).addEventListener('change', function (e) { txFilter.member = e.target.value; render(); });
   }
 
   /* ---------------------------------------------------------------------
@@ -1920,6 +1976,10 @@
   };
 
   document.addEventListener('click', function (e) {
+    // Abhaken zuerst — der Knopf steht neben der Zeile, nicht darin.
+    var pay = e.target.closest('[data-pay]');
+    if (pay) { toggleStatus(pay.dataset.pay); return; }
+
     var actionEl = e.target.closest('[data-action]');
     if (actionEl && actions[actionEl.dataset.action]) {
       e.preventDefault();
@@ -1962,6 +2022,7 @@
      ------------------------------------------------------------------ */
 
   state = load();
+  wireView();
   if (!location.hash) location.hash = '#/uebersicht';
   render();
 
