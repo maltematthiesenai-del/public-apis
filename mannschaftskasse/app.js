@@ -14,12 +14,14 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-09.3';
+  var APP_VERSION = '2026-08-10.1';
 
   var CATEGORIES = {
-    in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Sonstige Einnahme'],
-    out: ['Getränke', 'Ausrüstung', 'Mannschaftsabend', 'Schiedsrichter', 'Turnier / Fahrt', 'Sonstige Ausgabe']
+    in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
+    out: ['Getränke', 'Ausrüstung', 'Mannschaftsabend', 'Schiedsrichter', 'Turnier / Fahrt', 'Anfangsbestand', 'Sonstige Ausgabe']
   };
+
+  var CARRY_CATEGORY = 'Anfangsbestand';
 
   // Kategorien, die typischerweise erst noch bezahlt werden müssen.
   var DEFAULT_OPEN_CATEGORIES = ['Strafe', 'Mitgliedsbeitrag'];
@@ -140,14 +142,29 @@
 
   var state = null;
 
+  // Aus dem heutigen Datum die laufende Spielzeit ableiten (Sommerpause im Juli).
+  function currentSeasonName() {
+    var d = new Date();
+    var y = d.getFullYear();
+    return d.getMonth() >= 6 ? y + '/' + String(y + 1).slice(2) : (y - 1) + '/' + String(y).slice(2);
+  }
+
+  // „2026/27" → „2027/28"; bei freiem Text bleibt der Name leer.
+  function nextSeasonName(name) {
+    var m = String(name || '').match(/^(\d{4})\s*\/\s*(\d{2,4})$/);
+    if (!m) return '';
+    var von = parseInt(m[1], 10) + 1;
+    return von + '/' + String(von + 1).slice(2);
+  }
+
   function defaultState() {
-    var year = new Date().getFullYear();
-    var month = new Date().getMonth();
-    var season = month >= 6 ? year + '/' + String(year + 1).slice(2) : (year - 1) + '/' + String(year).slice(2);
+    var season = { id: uid(), name: currentSeasonName(), createdAt: Date.now() };
     return {
-      version: 1,
-      team: { name: 'Meine Mannschaft', season: season },
+      version: 2,
+      team: { name: 'Meine Mannschaft' },
       settings: { monthlyFeeCents: 500 },
+      seasons: [season],
+      currentSeasonId: season.id,
       members: [],
       transactions: [],
       fines: DEFAULT_FINES.map(function (f, i) {
@@ -156,24 +173,81 @@
     };
   }
 
+  /* Bringt gespeicherte Daten auf den aktuellen Stand. Fassung 1 kannte nur
+     eine einzige Saison als Textfeld — daraus wird die erste Saison, der
+     alle vorhandenen Buchungen zugeordnet werden. */
+  function migrate(data) {
+    var base = defaultState();
+    var seasons = Array.isArray(data.seasons) && data.seasons.length ? data.seasons : null;
+    var transactions = Array.isArray(data.transactions) ? data.transactions : [];
+
+    if (!seasons) {
+      var name = (data.team && data.team.season) || currentSeasonName();
+      seasons = [{ id: uid(), name: name, createdAt: Date.now() }];
+    }
+    var ids = seasons.map(function (s) { return s.id; });
+    var currentId = ids.indexOf(data.currentSeasonId) > -1 ? data.currentSeasonId : ids[0];
+
+    // Buchungen ohne Zuordnung gehören in die erste Saison.
+    transactions.forEach(function (t) {
+      if (!t.seasonId || ids.indexOf(t.seasonId) < 0) t.seasonId = ids[0];
+    });
+
+    var team = Object.assign({}, base.team, data.team || {});
+    delete team.season;
+
+    return {
+      version: 2,
+      team: team,
+      settings: Object.assign(base.settings, data.settings || {}),
+      seasons: seasons,
+      currentSeasonId: currentId,
+      members: Array.isArray(data.members) ? data.members : [],
+      transactions: transactions,
+      fines: Array.isArray(data.fines) ? data.fines : base.fines
+    };
+  }
+
   function load() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return defaultState();
-      var data = JSON.parse(raw);
-      var base = defaultState();
-      return {
-        version: 1,
-        team: Object.assign(base.team, data.team || {}),
-        settings: Object.assign(base.settings, data.settings || {}),
-        members: Array.isArray(data.members) ? data.members : [],
-        transactions: Array.isArray(data.transactions) ? data.transactions : [],
-        fines: Array.isArray(data.fines) ? data.fines : base.fines
-      };
+      return migrate(JSON.parse(raw));
     } catch (e) {
       console.warn('Gespeicherte Daten konnten nicht gelesen werden:', e);
       return defaultState();
     }
+  }
+
+  /* ---------------------------------------------------------------------
+     Saisons
+     ------------------------------------------------------------------ */
+
+  function currentSeason() {
+    for (var i = 0; i < state.seasons.length; i++) {
+      if (state.seasons[i].id === state.currentSeasonId) return state.seasons[i];
+    }
+    return state.seasons[0];
+  }
+
+  function seasonName(id) {
+    for (var i = 0; i < state.seasons.length; i++) {
+      if (state.seasons[i].id === id) return state.seasons[i].name;
+    }
+    return '';
+  }
+
+  // Alle Buchungen einer Saison — Grundlage sämtlicher Auswertungen.
+  function seasonTx(id) {
+    var sid = id || state.currentSeasonId;
+    return state.transactions.filter(function (t) { return t.seasonId === sid; });
+  }
+
+  // Kassenstand einer beliebigen Saison (nur bezahlte Buchungen).
+  function seasonBalance(id) {
+    return seasonTx(id).reduce(function (sum, t) {
+      return t.status === 'paid' ? sum + signedCents(t) : sum;
+    }, 0);
   }
 
   function save() {
@@ -197,20 +271,20 @@
     var d = new Date();
     d.setDate(d.getDate() - days);
     var seit = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    return state.transactions.reduce(function (sum, t) {
+    return seasonTx().reduce(function (sum, t) {
       return (t.status === 'paid' && String(t.date) >= seit) ? sum + signedCents(t) : sum;
     }, 0);
   }
 
   function balanceCents() {
-    return state.transactions.reduce(function (sum, t) {
+    return seasonTx().reduce(function (sum, t) {
       return t.status === 'paid' ? sum + signedCents(t) : sum;
     }, 0);
   }
 
   function totals() {
     var r = { in: 0, out: 0, openIn: 0, openOut: 0 };
-    state.transactions.forEach(function (t) {
+    seasonTx().forEach(function (t) {
       if (t.status === 'paid') r[t.type] += t.cents;
       else if (t.type === 'in') r.openIn += t.cents;
       else r.openOut += t.cents;
@@ -230,7 +304,7 @@
 
   function memberStats(id) {
     var r = { openIn: 0, openOut: 0, paidIn: 0, count: 0 };
-    state.transactions.forEach(function (t) {
+    seasonTx().forEach(function (t) {
       if (t.memberId !== id) return;
       r.count++;
       if (t.status === 'open') { if (t.type === 'in') r.openIn += t.cents; else r.openOut += t.cents; }
@@ -240,7 +314,7 @@
   }
 
   function sortedTransactions() {
-    return state.transactions.slice().sort(function (a, b) {
+    return seasonTx().sort(function (a, b) {
       if (a.date === b.date) return (b.createdAt || 0) - (a.createdAt || 0);
       return a.date < b.date ? 1 : -1;
     });
@@ -262,7 +336,7 @@
 
   function expensesByCategory() {
     var map = {};
-    state.transactions.forEach(function (t) {
+    seasonTx().forEach(function (t) {
       if (t.type !== 'out' || t.status !== 'paid') return;
       map[t.category] = (map[t.category] || 0) + t.cents;
     });
@@ -272,7 +346,7 @@
 
   function fineRanking() {
     var map = {};
-    state.transactions.forEach(function (t) {
+    seasonTx().forEach(function (t) {
       if (t.category !== 'Strafe' || !t.memberId) return;
       map[t.memberId] = (map[t.memberId] || 0) + t.cents;
     });
@@ -285,7 +359,7 @@
     var keys = lastMonths(n);
     var map = {};
     keys.forEach(function (k) { map[k] = { key: k, in: 0, out: 0 }; });
-    state.transactions.forEach(function (t) {
+    seasonTx().forEach(function (t) {
       if (t.status !== 'paid') return;
       var k = String(t.date).slice(0, 7);
       if (map[k]) map[k][t.type] += t.cents;
@@ -542,6 +616,7 @@
           var rec = {
             id: existing ? existing.id : uid(),
             createdAt: existing ? existing.createdAt : Date.now(),
+            seasonId: existing ? existing.seasonId : state.currentSeasonId,
             type: segValue(modal, 'type'),
             cents: cents,
             category: $('#f-category', modal).value,
@@ -805,13 +880,139 @@
           var status = segValue(modal, 'status');
           ids.forEach(function (mid) {
             state.transactions.push({
-              id: uid(), createdAt: Date.now(), type: 'in', cents: cents,
-              category: 'Strafe', memberId: mid, date: date, note: f.label, status: status
+              id: uid(), createdAt: Date.now(), seasonId: state.currentSeasonId,
+              type: 'in', cents: cents, category: 'Strafe', memberId: mid,
+              date: date, note: f.label, status: status
             });
           });
           closeModal();
           commit();
           toast(ids.length + '× „' + f.label + '“ gebucht (' + money(cents * ids.length) + ').');
+        });
+      }
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+     Saison anlegen, umbenennen, löschen
+     ------------------------------------------------------------------ */
+
+  function newSeasonDialog() {
+    var alt = currentSeason();
+    var bestand = seasonBalance(alt.id);
+    var offen = seasonTx(alt.id).reduce(function (s, t) {
+      return (t.status === 'open' && t.type === 'in') ? s + t.cents : s;
+    }, 0);
+
+    var body =
+      '<div class="form-grid">' +
+        '<div class="field">' +
+          '<label for="s-name">Name der neuen Saison</label>' +
+          '<input id="s-name" type="text" data-autofocus value="' + esc(nextSeasonName(alt.name)) + '" placeholder="z. B. 2027/28">' +
+        '</div>' +
+        '<div class="field">' +
+          '<label for="s-start">Beginn</label>' +
+          '<input id="s-start" type="date" value="' + todayISO() + '">' +
+        '</div>' +
+        '<div class="field">' +
+          '<label>Übernahme aus „' + esc(alt.name) + '“</label>' +
+          '<label class="checkline">' +
+            '<input type="checkbox" id="s-carry"' + (bestand !== 0 ? ' checked' : ' disabled') + '>' +
+            '<span>Kassenstand von <strong>' + money(bestand) + '</strong> als Anfangsbestand buchen</span>' +
+          '</label>' +
+          (bestand === 0
+            ? '<span class="hint">Die alte Saison hat keinen Bestand — es gibt nichts zu übernehmen.</span>'
+            : '<span class="hint">Es wird eine Buchung „Anfangsbestand“ in der neuen Saison angelegt.</span>') +
+        '</div>' +
+        (offen > 0
+          ? '<p class="hint">Hinweis: In „' + esc(alt.name) + '“ stehen noch <strong>' + money(offen) +
+            '</strong> an offenen Forderungen. Die bleiben dort stehen — du erreichst sie jederzeit über den ' +
+            'Saison-Umschalter oben.</p>'
+          : '') +
+      '</div>';
+
+    openModal({
+      title: 'Neue Saison anlegen',
+      body: body,
+      footer: '<button class="btn" data-close>Abbrechen</button>' +
+        '<button class="btn btn-primary" data-save>Saison anlegen</button>',
+      onMount: function (modal) {
+        $('[data-save]', modal).addEventListener('click', function () {
+          var name = $('#s-name', modal).value.trim();
+          if (!name) { toast('Bitte einen Namen für die Saison eingeben.'); return; }
+          if (state.seasons.some(function (s) { return s.name === name; })) {
+            toast('Eine Saison mit diesem Namen gibt es schon.');
+            return;
+          }
+          var start = $('#s-start', modal).value || todayISO();
+          var carry = $('#s-carry', modal).checked && bestand !== 0;
+
+          var neu = { id: uid(), name: name, createdAt: Date.now() };
+          state.seasons.push(neu);
+          state.currentSeasonId = neu.id;
+
+          if (carry) {
+            state.transactions.push({
+              id: uid(), createdAt: Date.now(), seasonId: neu.id,
+              // Ein negativer Bestand wird als Ausgabe übernommen, damit der
+              // Kassenstand der neuen Saison exakt dort weitermacht.
+              type: bestand >= 0 ? 'in' : 'out',
+              cents: Math.abs(bestand),
+              category: CARRY_CATEGORY,
+              memberId: null,
+              date: start,
+              note: 'Übernahme aus Saison ' + alt.name,
+              status: 'paid'
+            });
+          }
+
+          closeModal();
+          commit();
+          toast(carry
+            ? 'Saison ' + name + ' angelegt — Anfangsbestand ' + money(bestand) + ' übernommen.'
+            : 'Saison ' + name + ' angelegt.');
+        });
+      }
+    });
+  }
+
+  function seasonDialog(season) {
+    var anzahl = seasonTx(season.id).length;
+    var body =
+      '<div class="form-grid">' +
+        '<div class="field">' +
+          '<label for="sr-name">Name</label>' +
+          '<input id="sr-name" type="text" data-autofocus value="' + esc(season.name) + '">' +
+        '</div>' +
+        '<p class="hint">Kassenstand: <strong>' + money(seasonBalance(season.id)) + '</strong> · ' +
+          anzahl + ' Buchung' + (anzahl === 1 ? '' : 'en') + '</p>' +
+      '</div>';
+
+    openModal({
+      title: 'Saison bearbeiten',
+      body: body,
+      footer:
+        (state.seasons.length > 1 ? '<button class="btn btn-danger btn-icon-only" data-delete>Löschen</button>' : '') +
+        '<button class="btn" data-close>Abbrechen</button>' +
+        '<button class="btn btn-primary" data-save>Speichern</button>',
+      onMount: function (modal) {
+        $('[data-save]', modal).addEventListener('click', function () {
+          var name = $('#sr-name', modal).value.trim();
+          if (!name) { toast('Bitte einen Namen eingeben.'); return; }
+          season.name = name;
+          closeModal();
+          commit();
+        });
+
+        var del = $('[data-delete]', modal);
+        if (del) del.addEventListener('click', function () {
+          if (!confirm('Saison „' + season.name + '“ mit ' + anzahl + ' Buchung(en) unwiderruflich löschen?')) return;
+          state.transactions = state.transactions.filter(function (t) { return t.seasonId !== season.id; });
+          state.seasons = state.seasons.filter(function (s) { return s.id !== season.id; });
+          if (state.currentSeasonId === season.id) state.currentSeasonId = state.seasons[0].id;
+          closeModal();
+          commit();
+          toast('Saison gelöscht.');
         });
       }
     });
@@ -865,8 +1066,9 @@
           var status = segValue(modal, 'status');
           players.forEach(function (m) {
             state.transactions.push({
-              id: uid(), createdAt: Date.now(), type: 'in', cents: cents,
-              category: 'Mitgliedsbeitrag', memberId: m.id, date: date, note: note, status: status
+              id: uid(), createdAt: Date.now(), seasonId: state.currentSeasonId,
+              type: 'in', cents: cents, category: 'Mitgliedsbeitrag', memberId: m.id,
+              date: date, note: note, status: status
             });
           });
           state.settings.monthlyFeeCents = cents;
@@ -1077,7 +1279,7 @@
     var recent = sortedTransactions().slice(0, 6);
 
     var debtors = state.members.map(function (m) {
-      var items = state.transactions.filter(function (t) {
+      var items = seasonTx().filter(function (t) {
         return t.memberId === m.id && t.status === 'open' && t.type === 'in';
       });
       return {
@@ -1110,7 +1312,7 @@
                 (delta > 0 ? '▲' : '▼') + ' <span class="num">' + money(Math.abs(delta)) + '</span></span>'
             : '') +
         '</div>' +
-        '<p class="bal-meta">' + esc(state.team.name) + ' · Saison ' + esc(state.team.season) +
+        '<p class="bal-meta">' + esc(state.team.name) + ' · Saison ' + esc(currentSeason().name) +
           (delta !== 0 ? ' · Veränderung in 30 Tagen' : '') + '</p>' +
         '<div class="statbox">' +
           statRow('Einnahmen', money(tot.in), 'pos') +
@@ -1119,7 +1321,7 @@
         '<div class="statbox">' +
           statRow('Offene Forderungen', money(tot.openIn), '') +
           statRow('Offene Auslagen', money(tot.openOut), '') +
-          statRow('Buchungen', String(state.transactions.length), '') +
+          statRow('Buchungen', String(seasonTx().length), '') +
         '</div>' +
         '<button class="btn btn-primary btn-block" data-action="new-transaction">Neue Buchung</button>' +
       '</div></section>';
@@ -1324,17 +1526,38 @@
     var html = '<section class="card">' +
       '<div class="card-head"><h2>Mannschaft</h2></div>' +
       '<div class="card-body form-grid">' +
-        '<div class="form-row">' +
-          '<div class="field"><label for="t-name">Name</label>' +
-            '<input id="t-name" type="text" value="' + esc(state.team.name) + '"></div>' +
-          '<div class="field"><label for="t-season">Saison</label>' +
-            '<input id="t-season" type="text" value="' + esc(state.team.season) + '"></div>' +
-        '</div>' +
+        '<div class="field"><label for="t-name">Name</label>' +
+          '<input id="t-name" type="text" value="' + esc(state.team.name) + '"></div>' +
         '<div class="field"><label for="t-fee">Mitgliedsbeitrag je Spieler</label>' +
           '<div class="amount-input"><input id="t-fee" type="text" inputmode="decimal" value="' +
             (state.settings.monthlyFeeCents / 100).toFixed(2).replace('.', ',') + '"><span class="cur">€</span></div></div>' +
         '<button class="btn btn-primary" data-action="save-team">Speichern</button>' +
       '</div></section>';
+
+    // Saisons: jede mit eigenem Kassenstand, umschaltbar und bearbeitbar.
+    var saisons = state.seasons.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    html += '<section class="card">' +
+      '<div class="card-head"><h2>Saisons</h2>' +
+        '<button class="btn btn-sm btn-primary" data-action="new-season">Neue Saison</button></div>' +
+      '<div class="list">' +
+      saisons.map(function (s) {
+        var laufend = s.id === state.currentSeasonId;
+        var anzahl = seasonTx(s.id).length;
+        var stand = seasonBalance(s.id);
+        return '<button class="list-row" data-season="' + esc(s.id) + '">' +
+          '<span class="avatar' + (laufend ? ' rank first' : '') + '">' +
+            (laufend ? icon('i-check') : icon('i-ball')) + '</span>' +
+          '<span class="grow"><span class="title">Saison ' + esc(s.name) + '</span>' +
+            '<span class="sub">' + anzahl + ' Buchung' + (anzahl === 1 ? '' : 'en') +
+            (laufend ? ' · wird gerade angezeigt' : '') + '</span></span>' +
+          '<span class="end"><span class="amount num ' + (stand < 0 ? 'neg' : '') + '">' + money(stand) + '</span>' +
+            (laufend ? '' : '<span class="badge">wechseln</span>') + '</span>' +
+          '</button>';
+      }).join('') +
+      '</div>' +
+      '<div class="card-body"><p class="hint">Antippen wechselt die Saison. Beim Anlegen einer neuen Saison ' +
+        'kann der Kassenstand der laufenden als Anfangsbestand übernommen werden.</p></div>' +
+      '</section>';
 
     html += '<section class="card">' +
       '<div class="card-head"><h2>Schnellaktionen</h2></div>' +
@@ -1377,7 +1600,7 @@
       '</div></section>';
 
     html += '<p class="hint" style="text-align:center;color:var(--muted)">' +
-      state.members.length + ' Spieler · ' + state.transactions.length + ' Buchungen · ' +
+      state.members.length + ' Spieler · ' + seasonTx().length + ' Buchungen · ' +
       'offen: ' + money(tot.openIn) + '</p>';
 
     return html;
@@ -1425,8 +1648,8 @@
     lines.push('');
     lines.push(['', '', '', '', 'Kassenstand', (balanceCents() / 100).toFixed(2).replace('.', ','), ''].join(sep));
     // BOM, damit Excel die Umlaute richtig liest.
-    download('kasse-' + slug(state.team.name) + '-' + todayISO() + '.csv', '﻿' + lines.join('\r\n'), 'text/csv');
-    toast('CSV exportiert.');
+    download('kasse-' + slug(state.team.name) + '-saison-' + slug(currentSeason().name) + '.csv', '﻿' + lines.join('\r\n'), 'text/csv');
+    toast('CSV der Saison ' + currentSeason().name + ' exportiert.');
   }
 
   function exportJSON() {
@@ -1447,16 +1670,10 @@
           var data = JSON.parse(String(reader.result));
           if (!data || !Array.isArray(data.transactions)) throw new Error('Unbekanntes Format');
           if (!confirm('Die Sicherung ersetzt alle aktuellen Daten. Fortfahren?')) return;
-          state = {
-            version: 1,
-            team: Object.assign(defaultState().team, data.team || {}),
-            settings: Object.assign(defaultState().settings, data.settings || {}),
-            members: data.members || [],
-            transactions: data.transactions || [],
-            fines: data.fines || defaultState().fines
-          };
+          // Über die Migration, damit auch Sicherungen ohne Saisons passen.
+          state = migrate(data);
           commit();
-          toast('Sicherung geladen.');
+          toast('Sicherung geladen — ' + state.seasons.length + ' Saison(s).');
         } catch (e) {
           toast('Datei konnte nicht gelesen werden.');
         }
@@ -1467,7 +1684,7 @@
   }
 
   function loadDemo() {
-    if (state.transactions.length && !confirm('Beispieldaten werden zu den vorhandenen Daten hinzugefügt. Fortfahren?')) return;
+    if (seasonTx().length && !confirm('Beispieldaten werden zur laufenden Saison hinzugefügt. Fortfahren?')) return;
     var names = ['Lukas Berger', 'Tim Hoffmann', 'Jonas Weber', 'Marco Schulz', 'Ali Yilmaz',
       'David Kraus', 'Sven Richter', 'Nico Bauer'];
     var created = names.map(function (n, i) {
@@ -1482,6 +1699,7 @@
       d.setDate(d.getDate() - daysAgo);
       state.transactions.push({
         id: uid() + Math.random(), createdAt: Date.now() - daysAgo * 86400000,
+        seasonId: state.currentSeasonId,
         type: type, cents: cents, category: cat, memberId: mid || null,
         date: d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()),
         note: note || '', status: status || 'paid'
@@ -1519,7 +1737,7 @@
   }
 
   function settleAll() {
-    var open = state.transactions.filter(function (t) { return t.status === 'open' && t.type === 'in'; });
+    var open = seasonTx().filter(function (t) { return t.status === 'open' && t.type === 'in'; });
     if (!open.length) { toast('Es gibt keine offenen Forderungen.'); return; }
     if (!confirm(open.length + ' offene Forderung(en) über ' +
       money(open.reduce(function (s, t) { return s + t.cents; }, 0)) + ' als bezahlt markieren?')) return;
@@ -1590,12 +1808,28 @@
     document.title = title + ' · ' + state.team.name;
     $('#viewTitle').textContent = title;
     $('#brandTeam').textContent = state.team.name;
-    $('#brandSeason').textContent = 'Saison ' + state.team.season;
+    $('#brandSeason').textContent = 'Saison ' + currentSeason().name;
     $('#navDesktop').innerHTML = sidebarHTML(id);
     $('#navMobile').innerHTML = navHTML(id);
 
-    // Jede Ansicht bringt ihre eigenen Aktionen mit; die Kopfzeile bleibt ruhig.
-    $('#topbarActions').innerHTML = '';
+    // In der Kopfzeile steht die laufende Saison — sie bestimmt, welche
+    // Buchungen die ganze App zeigt.
+    $('#topbarActions').innerHTML =
+      '<label class="season-picker">' +
+        '<span class="sr-only">Saison wählen</span>' +
+        '<select id="seasonSelect">' +
+          state.seasons.map(function (s) {
+            return '<option value="' + esc(s.id) + '"' +
+              (s.id === state.currentSeasonId ? ' selected' : '') + '>' +
+              'Saison ' + esc(s.name) + '</option>';
+          }).join('') +
+        '</select>' +
+      '</label>';
+    $('#seasonSelect').addEventListener('change', function (e) {
+      state.currentSeasonId = e.target.value;
+      commit();
+      toast('Saison ' + currentSeason().name);
+    });
 
     var view = $('#view');
     view.innerHTML = views[id]();
@@ -1657,6 +1891,7 @@
     'export-csv': exportCSV,
     'export-json': exportJSON,
     'import-json': importJSON,
+    'new-season': newSeasonDialog,
     'demo': loadDemo,
     'reset': resetAll,
     'check-update': function () {
@@ -1676,10 +1911,8 @@
     },
     'save-team': function () {
       var name = $('#t-name').value.trim();
-      var season = $('#t-season').value.trim();
       var fee = parseAmount($('#t-fee').value);
       if (name) state.team.name = name;
-      if (season) state.team.season = season;
       if (isFinite(fee) && fee >= 0) state.settings.monthlyFeeCents = fee;
       commit();
       toast('Gespeichert.');
@@ -1703,6 +1936,15 @@
 
     var fine = e.target.closest('#view [data-fine]');
     if (fine) { bookFineDialog(fine.dataset.fine); return; }
+
+    var season = e.target.closest('#view [data-season]');
+    if (season) {
+      var s = state.seasons.find(function (x) { return x.id === season.dataset.season; });
+      if (!s) return;
+      // Die laufende Saison öffnet den Bearbeiten-Dialog, jede andere wird gewählt.
+      if (s.id === state.currentSeasonId) { seasonDialog(s); }
+      else { state.currentSeasonId = s.id; commit(); toast('Saison ' + s.name); }
+    }
   });
 
   /* Beim Wechsel der Ansicht blendet der Browser weich über, sofern er die

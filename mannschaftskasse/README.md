@@ -67,7 +67,19 @@ diesen Spieler.
 Geburtstag ohne Kuchen …), frei anpassbar. Eine Strafe antippen, Spieler
 ankreuzen, fertig — auch für mehrere Spieler auf einmal.
 
-**Mehr** — Mannschaftsname, Saison, Beitragshöhe; Beiträge für den ganzen Kader
+**Saisons** — die App führt beliebig viele Spielzeiten. Oben rechts schaltet
+der Umschalter zwischen ihnen um; alles, was die App zeigt und rechnet —
+Kassenstand, Diagramm, offene Beträge, Auswertungen, CSV-Export — bezieht sich
+immer auf die gewählte Saison.
+
+Beim Anlegen einer neuen Saison schlägt die App den Folgenamen vor
+(„2026/27" → „2027/28") und übernimmt auf Wunsch den Kassenstand der
+laufenden Saison als Buchung „Anfangsbestand". Ein negativer Bestand wird
+dabei als Ausgabe übernommen, damit der Kassenstand nahtlos weiterläuft.
+Offene Forderungen bleiben in der alten Saison stehen — der Dialog weist
+darauf hin, wenn es welche gibt.
+
+**Mehr** — Mannschaftsname, Saisonverwaltung, Beitragshöhe; Beiträge für den ganzen Kader
 in einem Rutsch buchen; alle offenen Forderungen auf einmal abhaken; Hell-,
 Dunkel- oder Automatik-Design; CSV-Export, Sicherung und Wiederherstellung,
 Beispieldaten.

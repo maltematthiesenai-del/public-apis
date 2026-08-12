@@ -225,6 +225,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .topbar h1 { font-size: 23px; letter-spacing: -.03em; }
 .topbar-actions { display: flex; gap: 8px; align-items: center; }
 
+/* Saison-Umschalter in der Kopfzeile */
+.season-picker select {
+  width: auto; border-radius: 999px;
+  padding: 8px 34px 8px 15px;
+  font-size: 13.5px; font-weight: 580;
+  color: var(--accent-text);
+  background-color: var(--surface-2);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 .view {
   padding: 16px 16px 0;
   display: flex; flex-direction: column; gap: 14px;
