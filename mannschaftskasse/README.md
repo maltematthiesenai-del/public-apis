@@ -96,10 +96,19 @@ Der Unterschied ist der Kern der App:
 
 Strafen und Beiträge werden deshalb standardmäßig als *offen* angelegt.
 
-**Abhaken:** Jede offene Zeile trägt rechts einen Haken. Ein Tipp darauf bucht
-den Betrag als Einnahme, entfernt ihn aus den offenen Forderungen und hält den
-Tag der Zahlung fest — versehentlich abgehakt lässt sich über „Rückgängig" im
-Hinweis sofort zurücknehmen.
+**Zahlungen und Raten:** Jede offene Zeile trägt rechts einen Haken. Ein Tipp
+öffnet den Zahlungsdialog mit dem offenen Rest im Feld — wer alles auf einmal
+bekommt, tippt nur auf „Buchen". Für Teilzahlungen wird der Betrag einfach
+überschrieben.
+
+Jede Rate hängt mit eigenem Datum an der Forderung. Solange etwas aussteht,
+zeigt die Zeile den **Restbetrag**, dazu einen Fortschrittsbalken und
+„17,50 € von 30,00 €"; die Forderung erlischt erst, wenn der Rest bei null
+ist. Bereits erfasste Raten lassen sich im Zahlungsdialog einzeln entfernen,
+und „Rückgängig" im Hinweis nimmt die letzte Zahlung sofort zurück.
+
+Der Kassenstand zählt immer nur das Geld, das tatsächlich geflossen ist —
+bei einer angezahlten Forderung also den bezahlten Teil.
 
 Der Zahltag wird getrennt vom Buchungstag geführt: Eine Strafe aus dem März,
 die im August bezahlt wird, erscheint im Diagramm im August. Im Buchungsdialog

@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-10.2';
+  var APP_VERSION = '2026-08-11.1';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -272,22 +272,27 @@
     d.setDate(d.getDate() - days);
     var seit = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     return seasonTx().reduce(function (sum, t) {
-      return (t.status === 'paid' && String(cashDate(t)) >= seit) ? sum + signedCents(t) : sum;
+      return sum + cashFlows(t).reduce(function (a, f) {
+        if (String(f.date) < seit) return a;
+        return a + (t.type === 'in' ? f.cents : -f.cents);
+      }, 0);
     }, 0);
   }
 
   function balanceCents() {
     return seasonTx().reduce(function (sum, t) {
-      return t.status === 'paid' ? sum + signedCents(t) : sum;
+      var geflossen = paidAmount(t);
+      return sum + (t.type === 'in' ? geflossen : -geflossen);
     }, 0);
   }
 
   function totals() {
     var r = { in: 0, out: 0, openIn: 0, openOut: 0 };
     seasonTx().forEach(function (t) {
-      if (t.status === 'paid') r[t.type] += t.cents;
-      else if (t.type === 'in') r.openIn += t.cents;
-      else r.openOut += t.cents;
+      r[t.type] += paidAmount(t);
+      var rest = openAmount(t);
+      if (rest <= 0) return;
+      if (t.type === 'in') r.openIn += rest; else r.openOut += rest;
     });
     return r;
   }
@@ -307,8 +312,10 @@
     seasonTx().forEach(function (t) {
       if (t.memberId !== id) return;
       r.count++;
-      if (t.status === 'open') { if (t.type === 'in') r.openIn += t.cents; else r.openOut += t.cents; }
-      else if (t.type === 'in') r.paidIn += t.cents;
+      if (t.type === 'in') r.paidIn += paidAmount(t);
+      var rest = openAmount(t);
+      if (rest <= 0) return;
+      if (t.type === 'in') r.openIn += rest; else r.openOut += rest;
     });
     return r;
   }
@@ -360,9 +367,10 @@
     var map = {};
     keys.forEach(function (k) { map[k] = { key: k, in: 0, out: 0 }; });
     seasonTx().forEach(function (t) {
-      if (t.status !== 'paid') return;
-      var k = String(cashDate(t)).slice(0, 7);
-      if (map[k]) map[k][t.type] += t.cents;
+      cashFlows(t).forEach(function (f) {
+        var k = String(f.date).slice(0, 7);
+        if (map[k]) map[k][t.type] += f.cents;
+      });
     });
     return keys.map(function (k) { return map[k]; });
   }
@@ -556,6 +564,17 @@
           '<span class="hint" data-status-hint></span>' +
         '</div>' +
 
+        (existing && hasPayments(existing)
+          ? '<div class="field"><label>Raten</label><div class="ratelist">' +
+            existing.payments.map(function (p) {
+              return '<div class="rate-row"><span>' + fmtDate(p.date) + '</span>' +
+                '<b class="num">' + money(p.cents) + '</b></div>';
+            }).join('') +
+            '</div><span class="hint">Zusammen ' + money(paidAmount(existing)) + ' von ' +
+            money(existing.cents) + '. Der Status ergibt sich aus den Raten; ändern lassen ' +
+            'sie sich über den Haken in der Liste.</span></div>'
+          : '') +
+
         '<div class="field" data-paid-wrap>' +
           '<label for="f-paid">Bezahlt am</label>' +
           '<input id="f-paid" type="date" value="' + esc(t.paidDate || t.date) + '">' +
@@ -635,6 +654,11 @@
           };
           // Zahlungsdatum nur bei bezahlten Buchungen führen.
           if (rec.status === 'paid') rec.paidDate = $('#f-paid', modal).value || rec.date;
+          // Erfasste Raten überdauern das Bearbeiten und bestimmen den Status.
+          if (existing && hasPayments(existing)) {
+            rec.payments = existing.payments;
+            syncStatus(rec);
+          }
           if (existing) {
             var i = state.transactions.findIndex(function (x) { return x.id === existing.id; });
             state.transactions[i] = rec;
@@ -663,38 +687,157 @@
     });
   }
 
-  /* Eine offene Forderung abhaken: Sie zählt ab sofort als Einnahme im
-     Kassenstand und verschwindet aus den offenen Beträgen. Der Tag der
-     Zahlung wird getrennt vom Tag der Forderung festgehalten — sonst
-     erschiene das Geld im Diagramm in dem Monat, in dem die Forderung
-     entstanden ist, statt in dem, in dem sie beglichen wurde. */
-  function toggleStatus(id) {
+  /* Zahlung auf eine offene Forderung erfassen — ganz oder in Raten.
+
+     Der Restbetrag steht vorbelegt im Feld; wer alles auf einmal bekommt,
+     tippt nur auf „Buchen". Jede Rate behält ihren eigenen Tag, damit das
+     Geld im Diagramm dort auftaucht, wo es tatsächlich in die Kasse kam. */
+  function paymentDialog(id) {
     var t = state.transactions.find(function (x) { return x.id === id; });
     if (!t) return;
 
-    var vorher = { status: t.status, paidDate: t.paidDate };
-    if (t.status === 'open') {
-      t.status = 'paid';
-      t.paidDate = todayISO();
-    } else {
-      t.status = 'open';
-      delete t.paidDate;
-    }
-    var bezahlt = t.status === 'paid';
-    commit();
+    var rest = openAmount(t);
+    var bereits = paidAmount(t);
+    var wer = memberName(t.memberId);
 
-    toast(bezahlt
-      ? (t.type === 'in' ? 'Bezahlt — ' + money(t.cents) + ' als Einnahme gebucht.' : 'Als erstattet abgehakt.')
-      : 'Wieder als offen gesetzt.',
-      'Rückgängig', function () {
-        t.status = vorher.status;
-        if (vorher.paidDate) t.paidDate = vorher.paidDate; else delete t.paidDate;
-        commit();
-      });
+    var body =
+      '<div class="form-grid">' +
+        '<div class="paybox">' +
+          '<div class="paybox-row"><span>Forderung</span><b class="num">' + money(t.cents) + '</b></div>' +
+          (bereits > 0
+            ? '<div class="paybox-row"><span>Bereits gezahlt</span><b class="num pos">' + money(bereits) + '</b></div>'
+            : '') +
+          '<div class="paybox-row"><span>Noch offen</span><b class="num">' + money(rest) + '</b></div>' +
+        '</div>' +
+
+        '<div class="field">' +
+          '<label for="p-amount">Zahlung</label>' +
+          '<div class="amount-input">' +
+            '<input id="p-amount" type="text" inputmode="decimal" data-autofocus value="' +
+              (rest / 100).toFixed(2).replace('.', ',') + '">' +
+            '<span class="cur">€</span>' +
+          '</div>' +
+          '<div class="chips chips-sm" style="margin-top:8px">' +
+            '<button type="button" class="chip" data-quick="' + rest + '">Ganzer Rest</button>' +
+            (rest >= 200 ? '<button type="button" class="chip" data-quick="' + Math.round(rest / 2) + '">Hälfte</button>' : '') +
+          '</div>' +
+        '</div>' +
+
+        '<div class="field">' +
+          '<label for="p-date">Am</label>' +
+          '<input id="p-date" type="date" value="' + todayISO() + '">' +
+        '</div>' +
+
+        (hasPayments(t)
+          ? '<div class="field"><label>Bisherige Raten</label>' +
+            '<div class="ratelist">' +
+            t.payments.map(function (p) {
+              return '<div class="rate-row"><span>' + fmtDate(p.date) + '</span>' +
+                '<b class="num">' + money(p.cents) + '</b>' +
+                '<button type="button" class="icon-btn" data-drop-rate="' + esc(p.id) + '" ' +
+                  'title="Rate entfernen" aria-label="Rate vom ' + fmtDate(p.date) + ' entfernen">' +
+                  icon('i-close') + '</button></div>';
+            }).join('') +
+            '</div></div>'
+          : '') +
+      '</div>';
+
+    openModal({
+      title: 'Zahlung erfassen' + (wer ? ' — ' + wer : ''),
+      body: body,
+      footer: '<button class="btn" data-close>Abbrechen</button>' +
+        '<button class="btn btn-primary" data-save>Buchen</button>',
+      onMount: function (modal) {
+        modal.addEventListener('click', function (e) {
+          var quick = e.target.closest('[data-quick]');
+          if (quick) {
+            $('#p-amount', modal).value = (parseInt(quick.dataset.quick, 10) / 100).toFixed(2).replace('.', ',');
+            return;
+          }
+          var drop = e.target.closest('[data-drop-rate]');
+          if (drop) {
+            t.payments = t.payments.filter(function (p) { return p.id !== drop.dataset.dropRate; });
+            if (!t.payments.length) delete t.payments;
+            syncStatus(t);
+            if (!hasPayments(t)) { t.status = 'open'; delete t.paidDate; }
+            closeModal();
+            commit();
+            toast('Rate entfernt.');
+          }
+        });
+
+        $('[data-save]', modal).addEventListener('click', function () {
+          var cents = parseAmount($('#p-amount', modal).value);
+          if (!isFinite(cents) || cents <= 0) {
+            toast('Bitte einen Betrag größer als 0 eingeben.');
+            return;
+          }
+          if (cents > rest && !confirm('Die Zahlung ist höher als der offene Rest von ' +
+            money(rest) + '. Trotzdem buchen?')) return;
+
+          var rate = { id: uid(), cents: cents, date: $('#p-date', modal).value || todayISO() };
+          if (!t.payments) t.payments = [];
+          t.payments.push(rate);
+          syncStatus(t);
+          var nunOffen = openAmount(t);
+
+          closeModal();
+          commit();
+          toast(nunOffen > 0
+            ? money(cents) + ' gebucht · noch ' + money(nunOffen)
+            : money(cents) + ' gebucht · ausgeglichen',
+            'Rückgängig', function () {
+              t.payments = t.payments.filter(function (p) { return p.id !== rate.id; });
+              if (!t.payments.length) { delete t.payments; t.status = 'open'; delete t.paidDate; }
+              else syncStatus(t);
+              commit();
+            });
+        });
+      }
+    });
   }
 
   // Für den Geldfluss zählt der Tag der Zahlung, sonst der Tag der Buchung.
   function cashDate(t) { return t.paidDate || t.date; }
+
+  /* ---------------------------------------------------------------------
+     Raten
+
+     Eine Forderung kann in Teilbeträgen beglichen werden. Die Raten hängen
+     als Liste an der Buchung; jede hat ihren eigenen Tag. Buchungen ohne
+     Ratenliste verhalten sich wie bisher: ganz bezahlt oder gar nicht.
+     ------------------------------------------------------------------ */
+
+  // Alle tatsächlichen Geldbewegungen einer Buchung.
+  function cashFlows(t) {
+    if (t.payments && t.payments.length) {
+      return t.payments.map(function (p) { return { date: p.date, cents: p.cents }; });
+    }
+    if (t.status === 'paid') return [{ date: cashDate(t), cents: t.cents }];
+    return [];
+  }
+
+  function paidAmount(t) {
+    return cashFlows(t).reduce(function (s, f) { return s + f.cents; }, 0);
+  }
+
+  function openAmount(t) {
+    return Math.max(0, t.cents - paidAmount(t));
+  }
+
+  function hasPayments(t) { return !!(t.payments && t.payments.length); }
+
+  // Nach jeder Rate und nach jeder Betragsänderung: Ist die Forderung erledigt?
+  function syncStatus(t) {
+    if (!hasPayments(t)) return;
+    t.status = openAmount(t) <= 0 ? 'paid' : 'open';
+    if (t.status === 'paid') {
+      // Als Zahltag gilt die letzte Rate.
+      t.paidDate = t.payments.map(function (p) { return p.date; }).sort().pop();
+    } else {
+      delete t.paidDate;
+    }
+  }
 
   /* ---------------------------------------------------------------------
      Spieler-Dialog
@@ -1287,29 +1430,49 @@
     var name = memberName(t.memberId);
     /* Unterzeile knapp halten: Steht kein Spieler dabei, sagt die Kategorie am
        meisten — sonst der Name. Alles Weitere steht beim Öffnen der Buchung. */
+    var rest = openAmount(t);
+    var gezahlt = paidAmount(t);
+    var teilweise = rest > 0 && gezahlt > 0;
+
     var sub = [fmtDate(t.date), name || t.category].join(' · ');
-    if (t.status === 'paid' && t.paidDate && t.paidDate !== t.date) {
+    if (!teilweise && rest <= 0 && t.paidDate && t.paidDate !== t.date) {
       sub += ' · bezahlt ' + fmtDate(t.paidDate);
     }
+
+    // Bei offenen Forderungen steht der Rest vorne — das ist die Zahl,
+    // um die es geht. Der volle Betrag steht dann in der Unterzeile.
+    var zeigeBetrag = rest > 0 ? rest : t.cents;
+
     var zeile = '<button class="list-row" data-tx="' + t.id + '">' +
       '<span class="avatar ' + t.type + '">' + (t.type === 'in' ? '+' : '−') + '</span>' +
       '<span class="grow">' +
         '<span class="title">' + esc(t.note || t.category) + '</span>' +
         '<span class="sub">' + esc(sub) + '</span>' +
+        // Fortschritt bekommt eine eigene Zeile — in der Unterzeile würde der
+        // Text auf schmalen Displays abgeschnitten.
+        (teilweise
+          ? '<span class="paid-line">' +
+            '<span class="meter-track slim"><span style="width:' +
+              Math.max(4, Math.round(gezahlt / t.cents * 100)) + '%"></span></span>' +
+            '<small>' + money(gezahlt) + ' von ' + money(t.cents) + '</small>' +
+            '</span>'
+          : '') +
       '</span>' +
       '<span class="end">' +
         '<span class="amount num ' + (t.type === 'in' ? 'pos' : 'neg') + '">' +
-          (t.type === 'in' ? '+' : '−') + money(t.cents) + '</span>' +
-        (t.status === 'open' ? '<span class="badge open">offen</span>' : '') +
+          (t.type === 'in' ? '+' : '−') + money(zeigeBetrag) + '</span>' +
+        (rest > 0
+          ? '<span class="badge open">' + (teilweise ? 'Rest offen' : 'offen') + '</span>'
+          : '') +
       '</span>' +
       '</button>';
 
     // Der Abhaken-Knopf steht neben der Zeile, nicht darin: Ein Knopf im Knopf
     // wäre ungültiges Markup und würde unzuverlässig reagieren.
-    if (t.status !== 'open') return '<div class="tx-row">' + zeile + '</div>';
+    if (rest <= 0) return '<div class="tx-row">' + zeile + '</div>';
     return '<div class="tx-row">' + zeile +
-      '<button class="pay-btn" data-pay="' + t.id + '" title="Als bezahlt abhaken" ' +
-        'aria-label="' + esc(t.note || t.category) + ' als bezahlt abhaken">' +
+      '<button class="pay-btn" data-pay="' + t.id + '" title="Zahlung erfassen" ' +
+        'aria-label="Zahlung auf ' + esc(t.note || t.category) + ' erfassen">' +
         icon('i-check') + '</button>' +
       '</div>';
   }
@@ -1327,11 +1490,11 @@
 
     var debtors = state.members.map(function (m) {
       var items = seasonTx().filter(function (t) {
-        return t.memberId === m.id && t.status === 'open' && t.type === 'in';
+        return t.memberId === m.id && t.type === 'in' && openAmount(t) > 0;
       });
       return {
         m: m,
-        open: items.reduce(function (s, t) { return s + t.cents; }, 0),
+        open: items.reduce(function (s, t) { return s + openAmount(t); }, 0),
         count: items.length
       };
     }).filter(function (x) { return x.open > 0; })
@@ -1678,7 +1841,7 @@
 
   function exportCSV() {
     var sep = ';';
-    var head = ['Datum', 'Art', 'Kategorie', 'Spieler', 'Notiz', 'Betrag', 'Status'];
+    var head = ['Datum', 'Art', 'Kategorie', 'Spieler', 'Notiz', 'Betrag', 'Bezahlt', 'Offen', 'Status'];
     var lines = [head.join(sep)];
     sortedTransactions().slice().reverse().forEach(function (t) {
       lines.push([
@@ -1688,14 +1851,16 @@
         memberName(t.memberId) || '',
         t.note || '',
         (signedCents(t) / 100).toFixed(2).replace('.', ','),
-        t.status === 'open' ? 'offen' : 'bezahlt'
+        (paidAmount(t) / 100).toFixed(2).replace('.', ','),
+        (openAmount(t) / 100).toFixed(2).replace('.', ','),
+        openAmount(t) <= 0 ? 'bezahlt' : (paidAmount(t) > 0 ? 'teilweise' : 'offen')
       ].map(function (v) {
         var s = String(v);
         return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       }).join(sep));
     });
     lines.push('');
-    lines.push(['', '', '', '', 'Kassenstand', (balanceCents() / 100).toFixed(2).replace('.', ','), ''].join(sep));
+    lines.push(['', '', '', '', 'Kassenstand', (balanceCents() / 100).toFixed(2).replace('.', ','), '', '', ''].join(sep));
     // BOM, damit Excel die Umlaute richtig liest.
     download('kasse-' + slug(state.team.name) + '-saison-' + slug(currentSeason().name) + '.csv', '﻿' + lines.join('\r\n'), 'text/csv');
     toast('CSV der Saison ' + currentSeason().name + ' exportiert.');
@@ -1786,11 +1951,21 @@
   }
 
   function settleAll() {
-    var open = seasonTx().filter(function (t) { return t.status === 'open' && t.type === 'in'; });
+    var open = seasonTx().filter(function (t) { return t.type === 'in' && openAmount(t) > 0; });
     if (!open.length) { toast('Es gibt keine offenen Forderungen.'); return; }
     if (!confirm(open.length + ' offene Forderung(en) über ' +
-      money(open.reduce(function (s, t) { return s + t.cents; }, 0)) + ' als bezahlt markieren?')) return;
-    open.forEach(function (t) { t.status = 'paid'; });
+      money(open.reduce(function (s, t) { return s + openAmount(t); }, 0)) + ' als bezahlt markieren?')) return;
+    var heute = todayISO();
+    open.forEach(function (t) {
+      // Vorhandene Raten bleiben stehen; ergänzt wird nur der Rest.
+      if (hasPayments(t)) {
+        t.payments.push({ id: uid(), cents: openAmount(t), date: heute });
+        syncStatus(t);
+      } else {
+        t.status = 'paid';
+        t.paidDate = heute;
+      }
+    });
     commit();
     toast(open.length + ' Buchungen als bezahlt markiert.');
   }
@@ -1978,7 +2153,7 @@
   document.addEventListener('click', function (e) {
     // Abhaken zuerst — der Knopf steht neben der Zeile, nicht darin.
     var pay = e.target.closest('[data-pay]');
-    if (pay) { toggleStatus(pay.dataset.pay); return; }
+    if (pay) { paymentDialog(pay.dataset.pay); return; }
 
     var actionEl = e.target.closest('[data-action]');
     if (actionEl && actions[actionEl.dataset.action]) {
