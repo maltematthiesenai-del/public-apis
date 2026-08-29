@@ -184,6 +184,25 @@ hellen Design, Zielwert ≥ 8). Zusätzlich steht die Reihenfolge fest —
 Einnahmen immer links, Ausgaben immer rechts —, es gibt eine Legende und die
 Tabellenansicht, sodass die Werte nie allein an der Farbe hängen.
 
+## Zum Rechnen mit Geld
+
+Alle Beträge sind ganzzahlige Cent-Werte; es kommt an keiner Stelle eine
+Gleitkommazahl vor — weder beim Einlesen einer Eingabe noch bei der Ausgabe.
+`parseAmount` zerlegt die Eingabe in Ganz- und Bruchteil und setzt sie
+ganzzahlig zusammen; `centsToInput` macht den Weg zurück. Das letzte
+Trennzeichen entscheidet über seine Bedeutung: ein oder zwei Ziffern dahinter
+heißen Dezimaltrennzeichen („12,5", „12.34"), drei Ziffern heißen
+Tausenderpunkt — „1.234" sind also 1234 Euro.
+
+Für alle Auswertungen zählt ausschließlich **tatsächlich geflossenes Geld**:
+`cashFlows(t)` liefert entweder die einzelnen Raten mit ihrem jeweiligen Tag
+oder — ohne Raten — den vollen Betrag am Zahltag. Kassenstand, Einnahmen,
+Ausgaben, Diagramm, Kategorien, die Beträge je Spieler und die
+Bestandsübernahme in eine neue Saison bauen alle darauf auf. Der offene Rest
+ist `Betrag − Gezahltes`, nach unten auf null begrenzt.
+
+Nachgerechnet wird das von den Tests unter `tests/` — siehe `tests/README.md`.
+
 Beträge werden bewusst selbst formatiert statt über `Intl`: So steht auf jedem
 Gerät derselbe Euro-Betrag in deutscher Schreibweise — auch wenn das Handy auf
 Englisch läuft. In den Listen darf Text auf zwei Zeilen umbrechen statt

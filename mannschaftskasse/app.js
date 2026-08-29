@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-11.1';
+  var APP_VERSION = '2026-08-11.2';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -76,14 +76,42 @@
     return groupThousands(Math.round((cents || 0) / 100)) + ' €';
   }
 
+  /* Betrag aus einer Eingabe lesen — bewusst ohne Gleitkomma, damit aus
+     Cent-Beträgen nie Rundungsreste werden.
+
+     Der letzte Trennzeichen entscheidet: Stehen ein oder zwei Ziffern
+     dahinter, ist es das Dezimaltrennzeichen („12,5", „12.34"). Stehen drei
+     dahinter, war es ein Tausenderpunkt („1.234" sind 1234 Euro, nicht 1,23).
+     Alle übrigen Trennzeichen davor sind in jedem Fall Tausenderzeichen. */
   function parseAmount(value) {
     if (value == null) return NaN;
-    var clean = String(value).replace(/[^\d,.\-]/g, '').replace(/\./g, '.').trim();
-    // Deutsches Format: Komma ist das Dezimaltrennzeichen.
-    if (clean.indexOf(',') > -1) clean = clean.replace(/\./g, '').replace(',', '.');
-    var n = parseFloat(clean);
-    if (!isFinite(n)) return NaN;
-    return Math.round(n * 100);
+    var s = String(value).replace(/[^\d,.\-]/g, '').trim();
+    if (!/\d/.test(s)) return NaN;
+
+    var negativ = s.charAt(0) === '-';
+    s = s.replace(/-/g, '');
+
+    var trenner = Math.max(s.lastIndexOf(','), s.lastIndexOf('.'));
+    var ganz = s, bruch = '';
+    if (trenner > -1) {
+      var hinten = s.slice(trenner + 1);
+      if (hinten.length >= 1 && hinten.length <= 2) {
+        ganz = s.slice(0, trenner);
+        bruch = hinten;
+      }
+    }
+    ganz = ganz.replace(/[.,]/g, '');
+    bruch = (bruch + '00').slice(0, 2);
+
+    var cents = (parseInt(ganz || '0', 10) * 100) + parseInt(bruch, 10);
+    if (!isFinite(cents)) return NaN;
+    return negativ ? -cents : cents;
+  }
+
+  // Cent-Betrag für ein Eingabefeld — ebenfalls exakt, ohne Division.
+  function centsToInput(cents) {
+    var v = Math.abs(Math.round(cents || 0));
+    return (cents < 0 ? '-' : '') + Math.floor(v / 100) + ',' + pad(v % 100);
   }
 
   function todayISO() {
@@ -243,10 +271,12 @@
     return state.transactions.filter(function (t) { return t.seasonId === sid; });
   }
 
-  // Kassenstand einer beliebigen Saison (nur bezahlte Buchungen).
+  // Kassenstand einer beliebigen Saison: nur tatsächlich geflossenes Geld,
+  // Teilzahlungen eingeschlossen.
   function seasonBalance(id) {
     return seasonTx(id).reduce(function (sum, t) {
-      return t.status === 'paid' ? sum + signedCents(t) : sum;
+      var geflossen = paidAmount(t);
+      return sum + (t.type === 'in' ? geflossen : -geflossen);
     }, 0);
   }
 
@@ -344,8 +374,10 @@
   function expensesByCategory() {
     var map = {};
     seasonTx().forEach(function (t) {
-      if (t.type !== 'out' || t.status !== 'paid') return;
-      map[t.category] = (map[t.category] || 0) + t.cents;
+      if (t.type !== 'out') return;
+      var geflossen = paidAmount(t);
+      if (geflossen <= 0) return;
+      map[t.category] = (map[t.category] || 0) + geflossen;
     });
     return Object.keys(map).map(function (k) { return { label: k, cents: map[k] }; })
       .sort(function (a, b) { return b.cents - a.cents; });
@@ -534,7 +566,7 @@
           '<label for="f-amount">Betrag</label>' +
           '<div class="amount-input">' +
             '<input id="f-amount" type="text" inputmode="decimal" data-autofocus ' +
-              'value="' + (t.cents ? (t.cents / 100).toFixed(2).replace('.', ',') : '') + '" placeholder="0,00">' +
+              'value="' + (t.cents ? centsToInput(t.cents) : '') + '" placeholder="0,00">' +
             '<span class="cur">€</span>' +
           '</div>' +
         '</div>' +
@@ -714,7 +746,7 @@
           '<label for="p-amount">Zahlung</label>' +
           '<div class="amount-input">' +
             '<input id="p-amount" type="text" inputmode="decimal" data-autofocus value="' +
-              (rest / 100).toFixed(2).replace('.', ',') + '">' +
+              centsToInput(rest) + '">' +
             '<span class="cur">€</span>' +
           '</div>' +
           '<div class="chips chips-sm" style="margin-top:8px">' +
@@ -751,7 +783,7 @@
         modal.addEventListener('click', function (e) {
           var quick = e.target.closest('[data-quick]');
           if (quick) {
-            $('#p-amount', modal).value = (parseInt(quick.dataset.quick, 10) / 100).toFixed(2).replace('.', ',');
+            $('#p-amount', modal).value = centsToInput(parseInt(quick.dataset.quick, 10));
             return;
           }
           var drop = e.target.closest('[data-drop-rate]');
@@ -957,7 +989,7 @@
         '<div class="field">' +
           '<label for="s-amount">Betrag</label>' +
           '<div class="amount-input">' +
-            '<input id="s-amount" type="text" inputmode="decimal" value="' + (f.cents / 100).toFixed(2).replace('.', ',') + '">' +
+            '<input id="s-amount" type="text" inputmode="decimal" value="' + centsToInput(f.cents) + '">' +
             '<span class="cur">€</span>' +
           '</div>' +
         '</div>' +
@@ -1011,7 +1043,7 @@
         '<div class="field">' +
           '<label for="b-amount">Betrag je Spieler</label>' +
           '<div class="amount-input">' +
-            '<input id="b-amount" type="text" inputmode="decimal" value="' + (f.cents / 100).toFixed(2).replace('.', ',') + '">' +
+            '<input id="b-amount" type="text" inputmode="decimal" value="' + centsToInput(f.cents) + '">' +
             '<span class="cur">€</span>' +
           '</div>' +
         '</div>' +
@@ -1079,7 +1111,7 @@
     var alt = currentSeason();
     var bestand = seasonBalance(alt.id);
     var offen = seasonTx(alt.id).reduce(function (s, t) {
-      return (t.status === 'open' && t.type === 'in') ? s + t.cents : s;
+      return t.type === 'in' ? s + openAmount(t) : s;
     }, 0);
 
     var body =
@@ -1212,7 +1244,7 @@
           '<label for="fee-amount">Beitrag je Spieler</label>' +
           '<div class="amount-input">' +
             '<input id="fee-amount" type="text" inputmode="decimal" value="' +
-              (state.settings.monthlyFeeCents / 100).toFixed(2).replace('.', ',') + '"><span class="cur">€</span>' +
+              centsToInput(state.settings.monthlyFeeCents) + '"><span class="cur">€</span>' +
           '</div>' +
         '</div>' +
         '<div class="form-row">' +
@@ -1453,7 +1485,7 @@
         (teilweise
           ? '<span class="paid-line">' +
             '<span class="meter-track slim"><span style="width:' +
-              Math.max(4, Math.round(gezahlt / t.cents * 100)) + '%"></span></span>' +
+              (t.cents > 0 ? Math.min(100, Math.max(4, Math.round(gezahlt / t.cents * 100))) : 100) + '%"></span></span>' +
             '<small>' + money(gezahlt) + ' von ' + money(t.cents) + '</small>' +
             '</span>'
           : '') +
@@ -1586,7 +1618,8 @@
       '</div></section>';
 
     html += '<section class="card">' +
-      '<div class="card-head"><h2>Strafenkasse</h2></div>' +
+      '<div class="card-head"><h2>Strafenkasse</h2>' +
+        '<span class="hint">berechnet</span></div>' +
       (strafen.length
         ? '<div class="list">' + strafen.map(function (s, i) {
           return '<button class="list-row" data-member="' + s.id + '">' +
@@ -1623,7 +1656,10 @@
       return true;
     });
 
-    var sum = rows.reduce(function (s, t) { return t.status === 'paid' ? s + signedCents(t) : s; }, 0);
+    var sum = rows.reduce(function (s, t) {
+      var geflossen = paidAmount(t);
+      return s + (t.type === 'in' ? geflossen : -geflossen);
+    }, 0);
 
     var html = '<section class="filterbar">' +
       '<span class="search">' + icon('i-search') +
@@ -1742,7 +1778,7 @@
           '<input id="t-name" type="text" value="' + esc(state.team.name) + '"></div>' +
         '<div class="field"><label for="t-fee">Mitgliedsbeitrag je Spieler</label>' +
           '<div class="amount-input"><input id="t-fee" type="text" inputmode="decimal" value="' +
-            (state.settings.monthlyFeeCents / 100).toFixed(2).replace('.', ',') + '"><span class="cur">€</span></div></div>' +
+            centsToInput(state.settings.monthlyFeeCents) + '"><span class="cur">€</span></div></div>' +
         '<button class="btn btn-primary" data-action="save-team">Speichern</button>' +
       '</div></section>';
 
@@ -1850,17 +1886,23 @@
         t.category,
         memberName(t.memberId) || '',
         t.note || '',
-        (signedCents(t) / 100).toFixed(2).replace('.', ','),
-        (paidAmount(t) / 100).toFixed(2).replace('.', ','),
-        (openAmount(t) / 100).toFixed(2).replace('.', ','),
+        centsToInput(signedCents(t)),
+        centsToInput(paidAmount(t)),
+        centsToInput(openAmount(t)),
         openAmount(t) <= 0 ? 'bezahlt' : (paidAmount(t) > 0 ? 'teilweise' : 'offen')
       ].map(function (v) {
         var s = String(v);
         return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       }).join(sep));
     });
+    /* Zusammenfassung in den Spalten, in die sie gehört: Der Kassenstand ist
+       die Differenz der Spalte „Bezahlt", die Forderungen stehen unter „Offen".
+       So bleibt jede Spalte für sich summierbar. */
+    var t2 = totals();
     lines.push('');
-    lines.push(['', '', '', '', 'Kassenstand', (balanceCents() / 100).toFixed(2).replace('.', ','), '', '', ''].join(sep));
+    lines.push(['', '', '', '', 'Summe Einnahmen', '', centsToInput(t2.in), centsToInput(t2.openIn), ''].join(sep));
+    lines.push(['', '', '', '', 'Summe Ausgaben', '', centsToInput(t2.out), centsToInput(t2.openOut), ''].join(sep));
+    lines.push(['', '', '', '', 'Kassenstand', '', centsToInput(balanceCents()), '', ''].join(sep));
     // BOM, damit Excel die Umlaute richtig liest.
     download('kasse-' + slug(state.team.name) + '-saison-' + slug(currentSeason().name) + '.csv', '﻿' + lines.join('\r\n'), 'text/csv');
     toast('CSV der Saison ' + currentSeason().name + ' exportiert.');
