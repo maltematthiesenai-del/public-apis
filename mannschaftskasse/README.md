@@ -201,6 +201,13 @@ Ausgaben, Diagramm, Kategorien, die Beträge je Spieler und die
 Bestandsübernahme in eine neue Saison bauen alle darauf auf. Der offene Rest
 ist `Betrag − Gezahltes`, nach unten auf null begrenzt.
 
+**Forderungen ohne Spieler** zählen zur Kachel „Offene Forderungen" wie alle
+anderen. Damit die Aufschlüsselung aufgeht, führt die Übersicht sie als eigene
+Zeile „Ohne Spieler", und im Kader steht unter der Kachel, wie viel davon
+keinem Spieler zugeordnet ist. Ohne das ergäbe die Summe der Spielerzeilen
+einen kleineren Betrag als die Kachel — und wer nachrechnet, sucht die
+Differenz vergeblich.
+
 Nachgerechnet wird das von den Tests unter `tests/` — siehe `tests/README.md`.
 
 Beträge werden bewusst selbst formatiert statt über `Intl`: So steht auf jedem

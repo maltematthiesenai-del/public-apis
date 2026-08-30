@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-11.2';
+  var APP_VERSION = '2026-08-12.1';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -1532,6 +1532,21 @@
     }).filter(function (x) { return x.open > 0; })
       .sort(function (a, b) { return b.open - a.open; });
 
+    /* Forderungen ohne Spieler zählen in der Kachel „Offene Forderungen" mit.
+       Ohne eigene Zeile ergäbe die Aufschlüsselung eine kleinere Summe als die
+       Kachel — wer nachrechnet, sucht dann vergeblich nach der Differenz. */
+    var ohneSpieler = seasonTx().filter(function (t) {
+      return !t.memberId && t.type === 'in' && openAmount(t) > 0;
+    });
+    if (ohneSpieler.length) {
+      debtors.push({
+        m: null,
+        open: ohneSpieler.reduce(function (s, t) { return s + openAmount(t); }, 0),
+        count: ohneSpieler.length
+      });
+    }
+    var maxOffen = debtors.reduce(function (m, d) { return Math.max(m, d.open); }, 0);
+
     var kategorien = expensesByCategory().slice(0, 5);
     var maxKat = kategorien.length ? kategorien[0].cents : 0;
     var strafen = fineRanking().slice(0, 5);
@@ -1577,16 +1592,18 @@
           '<div class="dtable-head">' +
             '<span>Spieler</span><span>Offene Buchungen</span><span>Anteil</span><span>Offen</span>' +
           '</div>' +
-          debtors.slice(0, 6).map(function (d) {
-            return '<button class="dtable-row" data-member="' + d.m.id + '">' +
+          debtors.slice(0, 7).map(function (d) {
+            var ohne = !d.m;
+            return '<button class="dtable-row"' +
+              (ohne ? ' data-goto="buchungen-offen"' : ' data-member="' + d.m.id + '"') + '>' +
               '<span class="cell-name">' +
-                '<span class="avatar">' + esc(initials(d.m.name)) + '</span>' +
-                '<span class="cell-title">' + esc(d.m.name) +
-                  (d.m.number ? ' <span class="hint">· ' + esc(d.m.number) + '</span>' : '') + '</span>' +
+                '<span class="avatar">' + (ohne ? icon('i-list') : esc(initials(d.m.name))) + '</span>' +
+                '<span class="cell-title">' + (ohne ? 'Ohne Spieler' : esc(d.m.name) +
+                  (d.m.number ? ' <span class="hint">· ' + esc(d.m.number) + '</span>' : '')) + '</span>' +
               '</span>' +
               '<span class="cell-count">' + d.count + ' Buchung' + (d.count === 1 ? '' : 'en') + '</span>' +
               '<span class="cell-share"><span class="meter-track slim"><span style="width:' +
-                Math.max(6, Math.round(d.open / debtors[0].open * 100)) + '%"></span></span></span>' +
+                (maxOffen > 0 ? Math.max(6, Math.round(d.open / maxOffen * 100)) : 0) + '%"></span></span></span>' +
               '<span class="cell-amount num">' + money(d.open) + '</span>' +
               '</button>';
           }).join('') + '</div>'
@@ -1673,6 +1690,8 @@
         opt('all', 'Alle', txFilter.status) + opt('open', 'Nur offen', txFilter.status) + opt('paid', 'Nur bezahlt', txFilter.status) +
       '</select>' +
       '<select id="flt-member">' + opt('all', 'Alle Spieler', txFilter.member) +
+        // Eigener Eintrag, damit auch „keinem Spieler zugeordnet" wählbar ist.
+        opt('', 'Ohne Spieler', txFilter.member) +
         state.members.map(function (m) { return opt(m.id, m.name, txFilter.member); }).join('') +
       '</select>' +
       '</section>';
@@ -1706,11 +1725,21 @@
   views.spieler = function () {
     var list = squadOrder();
     var tot = totals();
+    /* Die Kachel zählt alle offenen Forderungen, die Zeilen darunter nur die
+       einem Spieler zugeordneten. Ohne diesen Hinweis geht die Rechnung für
+       den Kassenwart nicht auf. */
+    var ohneZuordnung = seasonTx().reduce(function (sum, t) {
+      return (!t.memberId && t.type === 'in') ? sum + openAmount(t) : sum;
+    }, 0);
 
     var html = '<div class="tiles" style="grid-template-columns:repeat(2,minmax(0,1fr))">' +
       '<div class="tile"><div class="label">Spieler im Kader</div><div class="value">' +
         list.filter(function (m) { return m.active !== false; }).length + '</div></div>' +
-      '<div class="tile"><div class="label">Offene Forderungen</div><div class="value">' + money(tot.openIn) + '</div></div>' +
+      '<div class="tile"><div class="label">Offene Forderungen</div><div class="value">' + money(tot.openIn) + '</div>' +
+        (ohneZuordnung > 0
+          ? '<div class="sub">davon ' + money(ohneZuordnung) + ' ohne Spieler</div>'
+          : '') +
+      '</div>' +
       '</div>';
 
     html += '<section class="card">' +
@@ -2213,6 +2242,16 @@
 
     var fine = e.target.closest('#view [data-fine]');
     if (fine) { bookFineDialog(fine.dataset.fine); return; }
+
+    var goto = e.target.closest('#view [data-goto]');
+    if (goto) {
+      if (goto.dataset.goto === 'buchungen-offen') {
+        txFilter.status = 'open';
+        txFilter.member = '';
+        location.hash = '#/buchungen';
+      }
+      return;
+    }
 
     var season = e.target.closest('#view [data-season]');
     if (season) {
