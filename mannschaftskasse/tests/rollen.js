@@ -110,7 +110,8 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
   pruef('Nur die 3 Spieler bekommen den Beitrag', gebucht===3, gebucht+' Buchungen');
 
   await p.evaluate(()=>{location.hash='#/spieler';}); await p.waitForTimeout(700);
-  await p.screenshot({path:process.env.SP+'/rollen-kader.png'});
+  // Bild nur, wenn ein Zielordner gesetzt ist — sonst landet es in „undefined/".
+  if (process.env.SP) await p.screenshot({path:process.env.SP+'/rollen-kader.png'});
   console.log(fehler===0?'\nALLES WIE GEWÜNSCHT':'\n'+fehler+' FEHLER');
   await b.close(); srv.close(); process.exit(fehler?1:0);
 })();
