@@ -8,6 +8,7 @@ NODE_PATH=$(npm root -g) node tests/formeln.js      # alle Summen der App
 node tests/betrag.js                                 # Betragserkennung
 NODE_PATH=$(npm root -g) node tests/csv.js           # Spaltensummen im CSV
 NODE_PATH=$(npm root -g) node tests/invarianten.js   # Zahlen gegeneinander
+NODE_PATH=$(npm root -g) node tests/rollen.js        # Rollen im Kader
 ```
 
 **`formeln.js`** erzeugt 140 zufällige, aber reproduzierbare Buchungen — rund
@@ -32,6 +33,11 @@ Forderungen" gegen ihre Aufschlüsselung in der Tabelle und im Kader, den Saldo
 Summe aller Saisons und das Verhalten nach „alle offenen Forderungen abhaken".
 Diese Art Prüfung findet Lücken, die eine reine Nachrechnung übersieht: Beide
 Seiten können für sich richtig sein und trotzdem nicht zusammenpassen.
+
+**`rollen.js`** legt Trainer und Betreuer an, prüft die Gruppierung und die
+Zählung im Kader, ändert eine Rolle nachträglich und sieht nach, ob die Person
+in die andere Gruppe wandert. Außerdem: Daten ohne Rollenangabe erscheinen als
+Spieler, und der Sammelbeitrag trifft nur die gewählte Gruppe.
 
 Die Tests sind so gebaut, dass sie gegen fehlerhafte Fassungen durchfallen —
 gegen den Stand vor der Prüfung vom August 2026 melden sie acht Abweichungen.

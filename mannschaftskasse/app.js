@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-08-12.1';
+  var APP_VERSION = '2026-10-02.1';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -22,6 +22,24 @@
   };
 
   var CARRY_CATEGORY = 'Anfangsbestand';
+
+  /* Rollen im Kader. Die Reihenfolge bestimmt zugleich die Gruppierung in
+     der Kaderliste: erst die Mannschaft, dann der Stab. */
+  var ROLES = [
+    { id: 'spieler', label: 'Spieler', gruppe: 'Spieler' },
+    { id: 'trainer', label: 'Trainer', gruppe: 'Trainerstab' },
+    { id: 'betreuer', label: 'Betreuer', gruppe: 'Betreuer' }
+  ];
+
+  function roleOf(m) {
+    var r = m && m.role;
+    for (var i = 0; i < ROLES.length; i++) if (ROLES[i].id === r) return ROLES[i];
+    return ROLES[0];   // ohne Angabe: Spieler
+  }
+  function roleIndex(m) {
+    for (var i = 0; i < ROLES.length; i++) if (ROLES[i].id === roleOf(m).id) return i;
+    return 0;
+  }
 
   // Kategorien, die typischerweise erst noch bezahlt werden müssen.
   var DEFAULT_OPEN_CATEGORIES = ['Strafe', 'Mitgliedsbeitrag'];
@@ -31,7 +49,7 @@
   var NAV = [
     { id: 'uebersicht', label: 'Übersicht', icon: 'i-home' },
     { id: 'buchungen', label: 'Buchungen', icon: 'i-list' },
-    { id: 'spieler', label: 'Spieler', icon: 'i-users' },
+    { id: 'spieler', label: 'Kader', icon: 'i-users' },
     { id: 'strafen', label: 'Strafen', icon: 'i-card' },
     { id: 'mehr', label: 'Mehr', icon: 'i-more', foot: true }
   ];
@@ -230,7 +248,11 @@
       settings: Object.assign(base.settings, data.settings || {}),
       seasons: seasons,
       currentSeasonId: currentId,
-      members: Array.isArray(data.members) ? data.members : [],
+      // Wer vor den Rollen angelegt wurde, ist ein Spieler.
+      members: (Array.isArray(data.members) ? data.members : []).map(function (m) {
+        if (!m.role) m.role = 'spieler';
+        return m;
+      }),
       transactions: transactions,
       fines: Array.isArray(data.fines) ? data.fines : base.fines
     };
@@ -505,10 +527,11 @@
   }
 
   function memberOptions(selectedId, emptyLabel) {
-    var opts = ['<option value="">' + esc(emptyLabel || '— keinem Spieler zugeordnet —') + '</option>'];
+    var opts = ['<option value="">' + esc(emptyLabel || '— keiner Person zugeordnet —') + '</option>'];
     activeFirst().forEach(function (m) {
+      var rolle = roleOf(m).id === 'spieler' ? '' : ' · ' + roleOf(m).label;
       opts.push('<option value="' + m.id + '"' + (m.id === selectedId ? ' selected' : '') + '>' +
-        esc(m.name) + (m.active === false ? ' (inaktiv)' : '') + '</option>');
+        esc(m.name + rolle) + (m.active === false ? ' (inaktiv)' : '') + '</option>');
     });
     return opts.join('');
   }
@@ -522,8 +545,13 @@
 
   /* Reihenfolge des Kaders: aktive Spieler zuerst, darin nach Trikotnummer
      aufsteigend, ohne Nummer zuletzt, bei Gleichstand nach Namen. */
+  /* Reihenfolge des Kaders: erst die Rolle (Spieler, Trainer, Betreuer),
+     darin aktive zuerst, dann nach Trikotnummer aufsteigend, ohne Nummer
+     zuletzt, bei Gleichstand nach Namen. */
   function squadOrder() {
     return state.members.slice().sort(function (a, b) {
+      var ra = roleIndex(a), rb = roleIndex(b);
+      if (ra !== rb) return ra - rb;
       var aAktiv = a.active !== false, bAktiv = b.active !== false;
       if (aAktiv !== bAktiv) return aAktiv ? -1 : 1;
       var na = jerseyValue(a), nb = jerseyValue(b);
@@ -583,7 +611,7 @@
         '</div>' +
 
         '<div class="field">' +
-          '<label for="f-member">Spieler</label>' +
+          '<label for="f-member">Person</label>' +
           '<select id="f-member">' + memberOptions(t.memberId) + '</select>' +
         '</div>' +
 
@@ -876,12 +904,24 @@
      ------------------------------------------------------------------ */
 
   function memberDialog(existing) {
-    var m = existing || { name: '', number: '', active: true };
+    var m = existing || { name: '', number: '', active: true, role: 'spieler' };
+    var rolle = roleOf(m).id;
     var body =
       '<div class="form-grid">' +
         '<div class="field">' +
           '<label for="m-name">Name</label>' +
           '<input id="m-name" type="text" data-autofocus value="' + esc(m.name) + '" placeholder="Vorname Nachname">' +
+        '</div>' +
+        '<div class="field">' +
+          '<label for="m-role">Rolle</label>' +
+          '<select id="m-role">' +
+            ROLES.map(function (r) {
+              return '<option value="' + r.id + '"' + (r.id === rolle ? ' selected' : '') + '>' +
+                esc(r.label) + '</option>';
+            }).join('') +
+          '</select>' +
+          '<span class="hint">Lässt sich jederzeit ändern. Strafen und Beiträge ' +
+            'funktionieren für alle Rollen gleich.</span>' +
         '</div>' +
         '<div class="field">' +
           '<label for="m-number">Trikotnummer <span class="hint">(optional)</span></label>' +
@@ -894,7 +934,7 @@
       '</div>';
 
     openModal({
-      title: existing ? 'Spieler bearbeiten' : 'Spieler hinzufügen',
+      title: existing ? 'Person bearbeiten' : 'Person hinzufügen',
       body: body,
       footer:
         (existing ? '<button class="btn btn-danger btn-icon-only" data-delete>Löschen</button>' : '') +
@@ -907,6 +947,7 @@
           var rec = {
             id: existing ? existing.id : uid(),
             name: name,
+            role: $('#m-role', modal).value,
             number: $('#m-number', modal).value.trim(),
             active: $('#m-active', modal).checked
           };
@@ -956,7 +997,7 @@
       '</div></div>';
 
     openModal({
-      title: m.name + (m.number ? ' · Nr. ' + m.number : ''),
+      title: m.name + ' · ' + roleOf(m).label + (m.number ? ' · Nr. ' + m.number : ''),
       body: body,
       footer:
         '<button class="btn" data-edit>Bearbeiten</button>' +
@@ -1033,7 +1074,7 @@
     var players = activeFirst().filter(function (m) { return m.active !== false; });
 
     if (!players.length) {
-      toast('Lege zuerst Spieler an.');
+      toast('Lege zuerst jemanden im Kader an.');
       location.hash = '#/spieler';
       return;
     }
@@ -1061,8 +1102,12 @@
           '<label>Wer muss zahlen? <span class="hint" data-count>(0 ausgewählt)</span></label>' +
           '<div style="max-height:38vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r-md);padding:2px 10px">' +
             players.map(function (m) {
+              var zusatz = roleOf(m).id === 'spieler'
+                ? (m.number ? ' · ' + m.number : '')
+                : ' · ' + roleOf(m).label;
               return '<label class="checkline"><input type="checkbox" data-player value="' + m.id + '">' +
-                '<span>' + esc(m.name) + (m.number ? ' <span class="hint">· ' + esc(m.number) + '</span>' : '') + '</span></label>';
+                '<span>' + esc(m.name) +
+                (zusatz ? ' <span class="hint">' + esc(zusatz) + '</span>' : '') + '</span></label>';
             }).join('') +
           '</div>' +
         '</div>' +
@@ -1233,15 +1278,31 @@
      ------------------------------------------------------------------ */
 
   function feesDialog() {
-    var players = activeFirst().filter(function (m) { return m.active !== false; });
-    if (!players.length) { toast('Lege zuerst Spieler an.'); return; }
+    var aktive = activeFirst().filter(function (m) { return m.active !== false; });
+    if (!aktive.length) { toast('Lege zuerst jemanden im Kader an.'); return; }
+
+    /* Trainer und Betreuer zahlen meist keinen Mitgliedsbeitrag. Deshalb
+       entscheidet der Kassenwart hier ausdrücklich, statt dass die App den
+       Stab stillschweigend mitbelastet. */
+    var nurSpieler = aktive.filter(function (m) { return roleOf(m).id === 'spieler'; });
+    var umfang = nurSpieler.length ? 'spieler' : 'alle';
+    var auswahl = function () { return umfang === 'alle' ? aktive : nurSpieler; };
 
     var d = new Date();
     var body =
       '<div class="form-grid">' +
-        '<p class="hint">Bucht einen Mitgliedsbeitrag für alle ' + players.length + ' aktiven Spieler auf einmal.</p>' +
+        (aktive.length > nurSpieler.length
+          ? '<div class="field"><label>Für wen?</label>' +
+            '<div class="chips chips-sm">' +
+              '<button type="button" class="chip" data-scope="spieler" aria-pressed="' +
+                (umfang === 'spieler') + '">Nur Spieler (' + nurSpieler.length + ')</button>' +
+              '<button type="button" class="chip" data-scope="alle" aria-pressed="' +
+                (umfang === 'alle') + '">Ganzer Kader (' + aktive.length + ')</button>' +
+            '</div></div>'
+          : '<p class="hint">Bucht einen Mitgliedsbeitrag für alle ' + aktive.length +
+            ' aktiven Personen auf einmal.</p>') +
         '<div class="field">' +
-          '<label for="fee-amount">Beitrag je Spieler</label>' +
+          '<label for="fee-amount">Beitrag je Person</label>' +
           '<div class="amount-input">' +
             '<input id="fee-amount" type="text" inputmode="decimal" value="' +
               centsToInput(state.settings.monthlyFeeCents) + '"><span class="cur">€</span>' +
@@ -1268,13 +1329,23 @@
       footer: '<button class="btn" data-close>Abbrechen</button>' +
         '<button class="btn btn-primary" data-save>Für alle buchen</button>',
       onMount: function (modal) {
+        modal.addEventListener('click', function (e) {
+          var chip = e.target.closest('[data-scope]');
+          if (!chip) return;
+          umfang = chip.dataset.scope;
+          $$('[data-scope]', modal).forEach(function (c) {
+            c.setAttribute('aria-pressed', String(c === chip));
+          });
+        });
+
         $('[data-save]', modal).addEventListener('click', function () {
           var cents = parseAmount($('#fee-amount', modal).value);
           if (!isFinite(cents) || cents <= 0) { toast('Bitte einen Betrag größer als 0 eingeben.'); return; }
           var date = $('#fee-date', modal).value || todayISO();
           var note = $('#fee-note', modal).value.trim();
           var status = segValue(modal, 'status');
-          players.forEach(function (m) {
+          var ziel = auswahl();
+          ziel.forEach(function (m) {
             state.transactions.push({
               id: uid(), createdAt: Date.now(), seasonId: state.currentSeasonId,
               type: 'in', cents: cents, category: 'Mitgliedsbeitrag', memberId: m.id,
@@ -1284,7 +1355,7 @@
           state.settings.monthlyFeeCents = cents;
           closeModal();
           commit();
-          toast('Beiträge für ' + players.length + ' Spieler gebucht.');
+          toast('Beiträge für ' + ziel.length + ' Person' + (ziel.length === 1 ? '' : 'en') + ' gebucht.');
         });
       }
     });
@@ -1590,7 +1661,7 @@
       (debtors.length
         ? '<div class="dtable">' +
           '<div class="dtable-head">' +
-            '<span>Spieler</span><span>Offene Buchungen</span><span>Anteil</span><span>Offen</span>' +
+            '<span>Person</span><span>Offene Buchungen</span><span>Anteil</span><span>Offen</span>' +
           '</div>' +
           debtors.slice(0, 7).map(function (d) {
             var ohne = !d.m;
@@ -1598,7 +1669,7 @@
               (ohne ? ' data-goto="buchungen-offen"' : ' data-member="' + d.m.id + '"') + '>' +
               '<span class="cell-name">' +
                 '<span class="avatar">' + (ohne ? icon('i-list') : esc(initials(d.m.name))) + '</span>' +
-                '<span class="cell-title">' + (ohne ? 'Ohne Spieler' : esc(d.m.name) +
+                '<span class="cell-title">' + (ohne ? 'Ohne Person' : esc(d.m.name) +
                   (d.m.number ? ' <span class="hint">· ' + esc(d.m.number) + '</span>' : '')) + '</span>' +
               '</span>' +
               '<span class="cell-count">' + d.count + ' Buchung' + (d.count === 1 ? '' : 'en') + '</span>' +
@@ -1689,9 +1760,9 @@
       '<select id="flt-status">' +
         opt('all', 'Alle', txFilter.status) + opt('open', 'Nur offen', txFilter.status) + opt('paid', 'Nur bezahlt', txFilter.status) +
       '</select>' +
-      '<select id="flt-member">' + opt('all', 'Alle Spieler', txFilter.member) +
-        // Eigener Eintrag, damit auch „keinem Spieler zugeordnet" wählbar ist.
-        opt('', 'Ohne Spieler', txFilter.member) +
+      '<select id="flt-member">' + opt('all', 'Alle Personen', txFilter.member) +
+        // Eigener Eintrag, damit auch „keiner Person zugeordnet" wählbar ist.
+        opt('', 'Ohne Person', txFilter.member) +
         state.members.map(function (m) { return opt(m.id, m.name, txFilter.member); }).join('') +
       '</select>' +
       '</section>';
@@ -1732,12 +1803,20 @@
       return (!t.memberId && t.type === 'in') ? sum + openAmount(t) : sum;
     }, 0);
 
+    var aktive = list.filter(function (m) { return m.active !== false; });
+    var spielerZahl = aktive.filter(function (m) { return roleOf(m).id === 'spieler'; }).length;
+    var stabZahl = aktive.length - spielerZahl;
+
     var html = '<div class="tiles" style="grid-template-columns:repeat(2,minmax(0,1fr))">' +
       '<div class="tile"><div class="label">Spieler im Kader</div><div class="value">' +
-        list.filter(function (m) { return m.active !== false; }).length + '</div></div>' +
+        spielerZahl + '</div>' +
+        (stabZahl > 0
+          ? '<div class="sub">dazu ' + stabZahl + ' im Trainer- und Betreuerstab</div>'
+          : '') +
+      '</div>' +
       '<div class="tile"><div class="label">Offene Forderungen</div><div class="value">' + money(tot.openIn) + '</div>' +
         (ohneZuordnung > 0
-          ? '<div class="sub">davon ' + money(ohneZuordnung) + ' ohne Spieler</div>'
+          ? '<div class="sub">davon ' + money(ohneZuordnung) + ' ohne Person</div>'
           : '') +
       '</div>' +
       '</div>';
@@ -1748,9 +1827,16 @@
       '<div class="list" style="margin-top:10px">';
 
     if (!list.length) {
-      html += '<div class="empty"><strong>Noch keine Spieler</strong>Füge deine Mitspieler hinzu, um Strafen und Beiträge zuordnen zu können.</div>';
+      html += '<div class="empty"><strong>Noch niemand im Kader</strong>Füge Mitspieler, Trainer oder Betreuer hinzu, um Strafen und Beiträge zuordnen zu können.</div>';
     } else {
+      var letzteGruppe = null;
       list.forEach(function (m) {
+        // Überschrift, sobald eine neue Rolle beginnt.
+        var gruppe = roleOf(m).gruppe;
+        if (gruppe !== letzteGruppe) {
+          letzteGruppe = gruppe;
+          html += '<div class="group-label">' + esc(gruppe) + '</div>';
+        }
         var st = memberStats(m.id);
         var sub = st.openIn > 0 ? 'offen: ' + money(st.openIn)
           : st.count ? 'alles bezahlt' : 'noch keine Buchung';

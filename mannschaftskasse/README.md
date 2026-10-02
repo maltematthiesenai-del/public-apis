@@ -58,10 +58,21 @@ Spieler, eine Notiz und einen Status. Suchen und filtern nach Art, Status und
 Spieler; nach Monaten gruppiert. Antippen öffnet die Buchung zum Bearbeiten,
 Löschen lässt sich rückgängig machen.
 
-**Spieler** — Kader nach Trikotnummer sortiert (aufsteigend, ohne Nummer
-zuletzt, inaktive Spieler ganz am Ende), pro Spieler die offene Summe und die
-komplette Buchungshistorie. Ein Tipp aufs Detail bucht direkt etwas Neues für
-diesen Spieler.
+**Kader** — jede Person hat eine Rolle: **Spieler**, **Trainer** oder
+**Betreuer**. Die Liste ist danach gruppiert, innerhalb der Gruppe nach
+Trikotnummer sortiert (aufsteigend, ohne Nummer zuletzt, inaktive ganz am
+Ende). Die Rolle lässt sich jederzeit über die Person ändern — wer vom
+Betreuer zum Spieler wird, rutscht beim nächsten Zeichnen in die andere
+Gruppe.
+
+Für die Buchhaltung sind alle Rollen gleich: Trainer und Betreuer können
+Strafen bekommen und Beiträge zahlen wie alle anderen. Nur beim Sammelbuchen
+der Mitgliedsbeiträge fragt die App, ob **nur die Spieler** oder der **ganze
+Kader** gemeint ist — Vorauswahl sind die Spieler, damit der Stab nicht
+versehentlich belastet wird.
+
+Pro Person stehen die offene Summe und die komplette Buchungshistorie bereit;
+ein Tipp aufs Detail bucht direkt etwas Neues für sie.
 
 **Strafen** — ein vorbelegter Strafenkatalog (zu spät zum Training, gelbe Karte,
 Geburtstag ohne Kuchen …), frei anpassbar. Eine Strafe antippen, Spieler
