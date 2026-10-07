@@ -21,6 +21,8 @@ const daten={version:2,team:{name:'SV Beispielheim II'},settings:{monthlyFeeCent
   // Teilzahlung: davon sind nur 4,00 € offen
   {id:'c',createdAt:3,seasonId:S,type:'in',cents:1000,category:'Mitgliedsbeitrag',memberId:'m2',date:'2026-09-01',note:'Beitrag',status:'open',
     payments:[{id:'p1',cents:600,date:'2026-09-15'}]},
+  // Lukas hat beides offen -> prüft die Aufteilung in zwei Spalten
+  {id:'k',createdAt:11,seasonId:S,type:'in',cents:600,category:'Strafe',memberId:'m2',date:'2026-09-19',note:'Handy in der Kabine',status:'open'},
   {id:'d',createdAt:4,seasonId:S,type:'in',cents:2000,category:'Strafe',memberId:'m4',date:'2026-09-05',note:'Trainerstrafe',status:'open'},
   {id:'e',createdAt:5,seasonId:S,type:'in',cents:500,category:'Mitgliedsbeitrag',memberId:'m5',date:'2026-09-05',note:'Beitrag',status:'open'},
   {id:'f',createdAt:6,seasonId:S,type:'in',cents:3000,category:'Spende',memberId:null,date:'2026-09-06',note:'Ohne Zuordnung',status:'open'},
@@ -58,29 +60,25 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
   pruef('Betreuerin ist dabei', /Anna Fischer \(Betreuer\)/.test(anfang.text));
   pruef('Buchung ohne Person fehlt (richtig so)', !/Ohne Zuordnung/.test(anfang.text));
   pruef('Bereits bezahlte Strafe fehlt', !/Bernd Klein/.test(anfang.text));
-  pruef('Teilzahlung zählt nur den Rest (4,00 €)', /Lukas Berger \(7\): 4,00 €/.test(anfang.text));
-  pruef('Gesamtsumme stimmt (25+4+5 = 34,00 €)', /Gesamt: 34,00 €/.test(anfang.text));
-  pruef('Zusammenfassung über der Vorschau', /3 Personen · 34,00 €/.test(anfang.summe), anfang.summe);
+  pruef('Teilzahlung zählt nur den Rest (6,00 Strafe + 4,00 Beitrag)',
+    /Lukas Berger \(7\): 10,00 €/.test(anfang.text));
+  pruef('Gesamtsumme stimmt (25+10+5 = 40,00 €)', /Gesamt: 40,00 €/.test(anfang.text));
+  pruef('Zusammenfassung über der Vorschau', /3 Personen · 40,00 €/.test(anfang.summe), anfang.summe);
 
-  // Unterteilung: Strafen und Beiträge getrennt, jede mit eigener Summe
-  pruef('Abschnitt Strafen mit eigener Summe (15+10)', /STRAFEN — 25,00 €/.test(anfang.text));
-  pruef('Abschnitt Beiträge mit eigener Summe (4+5)', /BEITRÄGE — 9,00 €/.test(anfang.text));
-  pruef('Strafen stehen vor den Beiträgen',
-    anfang.text.indexOf('STRAFEN') < anfang.text.indexOf('BEITRÄGE'));
-  pruef('Kein leerer Abschnitt „Sonstiges"', !/SONSTIGES/.test(anfang.text));
-  // Abschnittssummen müssen die Gesamtsumme ergeben: 25 + 9 = 34
-  const teilsummen = [...anfang.text.matchAll(/— ([\d.]+),(\d\d) €/g)]
-    .reduce((s,m)=>s+parseInt(m[1].replace(/\./g,''),10)*100+parseInt(m[2],10),0);
-  pruef('Abschnittssummen ergeben die Gesamtsumme', teilsummen===3400, teilsummen+' Cent');
-  // Lukas hat nur einen Beitrag — er darf nicht unter den Strafen stehen
-  const strafenBlock = anfang.text.slice(anfang.text.indexOf('STRAFEN'), anfang.text.indexOf('BEITRÄGE'));
-  pruef('Beitrag steht nicht im Strafen-Abschnitt', !/Lukas/.test(strafenBlock));
+  // Unterteilung: bei jeder Person Strafen und Beiträge getrennt
+  pruef('Aufteilung bei einer Person mit beidem',
+    /Lukas Berger \(7\): 10,00 €\n   Strafen 6,00 € · Beiträge 4,00 €/.test(anfang.text));
+  pruef('Bei nur einer Art keine überflüssige Zusatzzeile',
+    /Marco Schulz \(10\): 25,00 €\n(Anna|\n)/.test(anfang.text));
+  pruef('Spaltensummen unter der Gesamtsumme',
+    /Davon Strafen 31,00 € · Beiträge 9,00 €/.test(anfang.text));
+  pruef('Keine leere Spalte „Sonstiges"', !/Sonstiges/.test(anfang.text));
   console.log('--- Vorschau ---\n'+anfang.text+'\n----------------');
 
   // Trainer dazuschalten
   await p.click('[data-role-toggle="trainer"]'); await p.waitForTimeout(300);
   const mitTrainer = await p.evaluate(()=>document.querySelector('[data-preview]').textContent);
-  pruef('Trainer lässt sich dazuschalten', /Jörg Wegener \(Trainer\): 20,00 €/.test(mitTrainer) && /Gesamt: 54,00 €/.test(mitTrainer));
+  pruef('Trainer lässt sich dazuschalten', /Jörg Wegener \(Trainer\): 20,00 €/.test(mitTrainer) && /Gesamt: 60,00 €/.test(mitTrainer));
   await p.click('[data-role-toggle="trainer"]'); await p.waitForTimeout(300);
 
   // Einzelposten
@@ -93,14 +91,18 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
   // Kopieren
   await p.click('[data-send]'); await p.waitForTimeout(600);
   const inZwischenablage = await p.evaluate(()=>navigator.clipboard.readText());
-  pruef('Text landet in der Zwischenablage', /Offene Beträge · SV Beispielheim II/.test(inZwischenablage) && /Gesamt: 34,00 €/.test(inZwischenablage));
+  pruef('Text landet in der Zwischenablage', /Offene Beträge · SV Beispielheim II/.test(inZwischenablage) && /Gesamt: 40,00 €/.test(inZwischenablage));
 
   // Druckansicht
   await p.click('[data-print]'); await p.waitForTimeout(500);
   const druck = await p.evaluate(()=>document.querySelector('#printRoot').innerHTML);
-  pruef('Druckdokument gefüllt', /<h1>Offene Beträge/.test(druck) && /Gesamt/.test(druck) && !/Jörg/.test(druck));
-  pruef('Druckdokument ist unterteilt',
-    /<h2>Strafen<\/h2>/.test(druck) && /<h2>Beiträge<\/h2>/.test(druck) && !/Sonstiges/.test(druck));
+  pruef('Druckdokument gefüllt',
+    /Offene Beträge · Saison 2026\/27/.test(druck) && /Gesamt/.test(druck) && !/Jörg/.test(druck));
+  pruef('Spalten Strafen und Beiträge nebeneinander',
+    /<th class="r">Strafen<\/th><th class="r">Beiträge<\/th>/.test(druck));
+  pruef('Keine leere Spalte „Sonstiges"', !/Sonstiges/.test(druck));
+  pruef('Spaltensummen im Tabellenfuß',
+    /<tfoot>[\s\S]*31,00 €[\s\S]*9,00 €[\s\S]*40,00 €[\s\S]*<\/tfoot>/.test(druck));
   await p.emulateMedia({media:'print'});
   const sichtbar = await p.evaluate(()=>{
     const pr=getComputedStyle(document.querySelector('#printRoot')).display;
@@ -109,24 +111,51 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
   pruef('Im Druck nur das Dokument', sichtbar.druckbereich==='block' && sichtbar.oberflaeche==='none', JSON.stringify(sichtbar));
 
   /* Entweder alles dunkel oder alles hell: das Blatt ist hell, allein die
-     Kopfzeile ist dunkel — und die reicht bis an den Rand des Papiers. */
+     Kopfzeile ist dunkel. */
   const farben = await p.evaluate(()=>{
-    const band=document.querySelector('.doc .band');
-    const doc=document.querySelector('.doc');
     const hell=(el)=>{const c=getComputedStyle(el).backgroundColor.match(/\d+/g)||[255,255,255];
       return (+c[0]+ +c[1]+ +c[2])/3;};
-    const blatt=[...document.querySelectorAll('.doc section, .doc table, .doc .sum, .doc h1')];
+    const blatt=[...document.querySelectorAll('.doc table, .doc tr, .doc td, .doc th, .doc .lead')];
     return {
-      seite:hell(document.body), kopf:hell(band),
-      dunkleKoerper:blatt.filter(e=>hell(e)<200 && getComputedStyle(e).backgroundColor!=='rgba(0, 0, 0, 0)').length,
-      ueberstandLinks: doc.getBoundingClientRect().left - band.getBoundingClientRect().left,
-      ueberstandRechts: band.getBoundingClientRect().right - doc.getBoundingClientRect().right
+      seite:hell(document.body), kopf:hell(document.querySelector('.doc .band')),
+      dunkleKoerper:blatt.filter(e=>hell(e)<200 && getComputedStyle(e).backgroundColor!=='rgba(0, 0, 0, 0)').length
     };});
   pruef('Blatt hell, Kopfzeile dunkel', farben.seite>240 && farben.kopf<60, JSON.stringify(farben));
   pruef('Kein weiterer dunkler Block auf dem Blatt', farben.dunkleKoerper===0);
-  pruef('Kopfzeile reicht über die Textspalte hinaus',
-    farben.ueberstandLinks>10 && farben.ueberstandRechts>10,
-    farben.ueberstandLinks.toFixed(0)+'px / '+farben.ueberstandRechts.toFixed(0)+'px');
+
+  /* Das Blatt erbt die Klassen der Oberfläche mit. Helles Limette gehört
+     auf Dunkel, auf Weiß ist es unlesbar — es darf nur in der Kopfzeile
+     vorkommen. (Die Klasse .pos der App hat genau das einmal verursacht.) */
+  const blass = await p.evaluate(()=>{
+    const schlimm=[];
+    document.querySelectorAll('.doc *').forEach(el=>{
+      if (el.closest('.band')) return;
+      if (!el.firstChild || el.firstChild.nodeType!==3) return;
+      const c=(getComputedStyle(el).color.match(/\d+/g)||[0,0,0]).map(Number);
+      // Luminanz grob nach WCAG. Gedämpftes Grau ist erlaubt, das helle
+      // Limette der Oberfläche (0,84) nicht — auf Weiß liest es sich nicht.
+      const L=(0.2126*c[0]+0.7152*c[1]+0.0722*c[2])/255;
+      if (L>0.78) schlimm.push(el.className+' '+getComputedStyle(el).color);
+    });
+    return schlimm;});
+  pruef('Keine unlesbar helle Schrift auf dem Blatt', blass.length===0, blass.join(' | '));
+
+  /* A4 im Hochformat: 210 mm minus 2 × 15 mm Rand = 180 mm Satzspiegel.
+     Nichts darf darüber hinausragen, sonst skaliert der Browser das Blatt
+     herunter oder schiebt eine leere Seite hinterher. */
+  await p.setViewportSize({width:680, height:1123});   // 180 mm bei 96 dpi
+  await p.waitForTimeout(200);
+  const masse = await p.evaluate(()=>{
+    const doc=document.querySelector('.doc');
+    const tab=document.querySelector('.doc table');
+    return {
+      breite:doc.getBoundingClientRect().width,
+      ueberlauf:Math.max(doc.scrollWidth-doc.clientWidth, tab.scrollWidth-tab.clientWidth),
+      seitenbreite:document.documentElement.scrollWidth
+    };});
+  pruef('Blatt bleibt im Satzspiegel (180 mm)', masse.breite<=680.5, masse.breite.toFixed(1)+'px');
+  pruef('Nichts läuft seitlich über', masse.ueberlauf<=1 && masse.seitenbreite<=681,
+    JSON.stringify(masse));
 
   if (process.env.SP) {
     // preferCSSPageSize: sonst überschreibt Playwright den Seitenrand aus

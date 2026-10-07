@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-10-07.3';
+  var APP_VERSION = '2026-10-07.4';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -1174,57 +1174,81 @@
     return 'Offene Beträge · ' + state.team.name;
   }
 
-  // Für den Gruppenchat: schlichte Zeilen, keine festen Spaltenbreiten —
-  // in Chat-Schriften verrutschen ausgerichtete Spalten sonst.
-  /* Nach Art getrennt: Strafen und Beiträge sind für die Mannschaft zwei
-     verschiedene Dinge. Alles andere sammelt „Sonstiges" ein, damit kein
-     offener Posten unter den Tisch fällt und die Summe aufgeht. */
-  var CLAIM_SECTIONS = [
+  /* Jeder Posten gehört zu genau einer Art. Strafen und Beiträge sind für
+     die Mannschaft zwei verschiedene Dinge und stehen darum bei jeder Person
+     nebeneinander. „Sonstiges" fängt alles Übrige auf, damit kein offener
+     Betrag unter den Tisch fällt und die Spalten die Gesamtsumme ergeben. */
+  var CLAIM_KINDS = [
     { id: 'strafe', label: 'Strafen', test: function (t) { return t.category === 'Strafe'; } },
     { id: 'beitrag', label: 'Beiträge', test: function (t) { return t.category === 'Mitgliedsbeitrag'; } },
     { id: 'sonst', label: 'Sonstiges', test: function () { return true; } }
   ];
 
-  function claimsSections(rows) {
-    return CLAIM_SECTIONS.map(function (def, i) {
-      var personen = rows.map(function (r) {
-        var items = r.items.filter(function (t) {
-          // Jeder Posten landet im ersten passenden Abschnitt.
-          for (var k = 0; k < i; k++) if (CLAIM_SECTIONS[k].test(t)) return false;
-          return def.test(t);
-        });
-        if (!items.length) return null;
-        return {
-          m: r.m, items: items,
-          open: items.reduce(function (s, t) { return s + openAmount(t); }, 0)
-        };
-      }).filter(Boolean);
-      return {
-        id: def.id, label: def.label, personen: personen,
-        summe: personen.reduce(function (s, p) { return s + p.open; }, 0)
-      };
-    }).filter(function (sec) { return sec.personen.length > 0; });
+  function kindOf(t) {
+    for (var i = 0; i < CLAIM_KINDS.length; i++) if (CLAIM_KINDS[i].test(t)) return CLAIM_KINDS[i].id;
+    return 'sonst';
   }
 
+  // Eine Zeile je Person, eine Spalte je Art — Grundlage für Text und Blatt.
+  function claimsTable(rows) {
+    var personen = rows.map(function (r) {
+      var arten = {};
+      CLAIM_KINDS.forEach(function (k) { arten[k.id] = { items: [], open: 0 }; });
+      r.items.forEach(function (t) {
+        var topf = arten[kindOf(t)];
+        topf.items.push(t);
+        topf.open += openAmount(t);
+      });
+      return { m: r.m, arten: arten, open: r.open };
+    });
+
+    var summen = {};
+    CLAIM_KINDS.forEach(function (k) {
+      summen[k.id] = personen.reduce(function (s, p) { return s + p.arten[k.id].open; }, 0);
+    });
+
+    return {
+      personen: personen,
+      summen: summen,
+      // Eine Spalte, zu der niemand etwas offen hat, wird gar nicht erst gezeigt.
+      spalten: CLAIM_KINDS.filter(function (k) { return summen[k.id] > 0; }),
+      gesamt: personen.reduce(function (s, p) { return s + p.open; }, 0)
+    };
+  }
+
+  // Für den Gruppenchat: schlichte Zeilen, keine festen Spaltenbreiten —
+  // in Chat-Schriften verrutschen ausgerichtete Spalten sonst.
   function claimsText(rows, details) {
+    var tab = claimsTable(rows);
     var out = [claimsTitle(),
-      'Saison ' + currentSeason().name + ' · Stand ' + fmtDate(todayISO())];
-    claimsSections(rows).forEach(function (sec) {
-      out.push('');
-      out.push(sec.label.toUpperCase() + ' — ' + money(sec.summe));
-      sec.personen.forEach(function (p) {
-        out.push(personLabel(p.m) + ': ' + money(p.open));
-        if (details) {
-          p.items.forEach(function (t) {
-            out.push('   · ' + fmtDate(t.date) + ' ' + (t.note || t.category) +
+      'Saison ' + currentSeason().name + ' · Stand ' + fmtDate(todayISO()), ''];
+
+    tab.personen.forEach(function (p) {
+      out.push(personLabel(p.m) + ': ' + money(p.open));
+      var offene = tab.spalten.filter(function (k) { return p.arten[k.id].open > 0; });
+      if (details) {
+        offene.forEach(function (k) {
+          out.push('   ' + k.label + ' ' + money(p.arten[k.id].open));
+          p.arten[k.id].items.forEach(function (t) {
+            out.push('      · ' + fmtDate(t.date) + ' ' + (t.note || t.category) +
               ' — ' + money(openAmount(t)));
           });
-        }
-      });
+        });
+      } else if (offene.length > 1) {
+        // Bei nur einer Art stünde hier bloß die Zahl von oben noch einmal.
+        out.push('   ' + offene.map(function (k) {
+          return k.label + ' ' + money(p.arten[k.id].open);
+        }).join(' · '));
+      }
     });
-    var summe = rows.reduce(function (s, r) { return s + r.open; }, 0);
+
     out.push('');
-    out.push('Gesamt: ' + money(summe));
+    out.push('Gesamt: ' + money(tab.gesamt));
+    if (tab.spalten.length > 1) {
+      out.push('Davon ' + tab.spalten.map(function (k) {
+        return k.label + ' ' + money(tab.summen[k.id]);
+      }).join(' · '));
+    }
     return out.join('\n');
   }
 
@@ -1234,68 +1258,74 @@
     return m.name + ' (' + r.label + ')';
   }
 
-  /* Druckfassung: ein durchgehend helles Blatt mit dunkler Kopfzeile über die
-     ganze Papierbreite. Halb dunkel, halb hell liest sich auf Papier unruhig —
-     die Kopfzeile trägt die Farbe, der Rest bleibt hell und gut lesbar.
-     Aufgeteilt nach Strafen und Beiträgen, damit in der Gruppe niemand
-     nachfragen muss, woraus sich eine Summe zusammensetzt. */
+  /* Druckfassung: ein schlichtes, durchgehend helles A4-Blatt. Dunkel ist
+     allein die Kopfzeile. Eine Zeile je Person, daneben die Arten als eigene
+     Spalten — so sieht man auf einen Blick, wie viel jemand an Strafen und
+     wie viel an Beiträgen offen hat, und die Spaltensummen gehen auf. */
   function claimsPrintHTML(rows, details) {
-    var sections = claimsSections(rows);
-    var summe = rows.reduce(function (s, r) { return s + r.open; }, 0);
+    var tab = claimsTable(rows);
+    var spalten = tab.spalten;
 
-    // Alle Balken messen sich am größten Posten des Blattes, damit man die
-    // Abschnitte untereinander vergleichen kann.
-    var maxOpen = 0;
-    sections.forEach(function (sec) {
-      sec.personen.forEach(function (p) { if (p.open > maxOpen) maxOpen = p.open; });
-    });
-
-    function personZeilen(sec) {
-      return sec.personen.map(function (p) {
-        var anteil = maxOpen > 0 ? Math.round((p.open / maxOpen) * 100) : 0;
-        var r = roleOf(p.m);
-        var zusatz = r.id === 'spieler'
-          ? (p.m.number ? 'Nr. ' + esc(String(p.m.number)) : '')
-          : r.label;
-        var html =
-          '<tr class="person">' +
-            '<td><span class="av">' + esc(initials(p.m.name)) + '</span>' +
-              '<span class="nm">' + esc(p.m.name) +
-                (zusatz ? ' <span class="muted">' + zusatz + '</span>' : '') +
-              '</span></td>' +
-            '<td class="c-share"><span class="bar"><span style="width:' + anteil + '%"></span></span></td>' +
-            '<td class="r">' + money(p.open) + '</td>' +
-          '</tr>';
-        if (details) {
-          html += p.items.map(function (t) {
-            return '<tr class="detail">' +
-              '<td colspan="2">' + fmtDate(t.date) + ' · ' + esc(t.note || t.category) + '</td>' +
-              '<td class="r">' + money(openAmount(t)) + '</td>' +
-            '</tr>';
-          }).join('');
-        }
-        return html;
-      }).join('');
+    function betrag(cents) {
+      return cents > 0 ? money(cents) : '<span class="nil">–</span>';
     }
 
-    var abschnitte = sections.map(function (sec) {
-      return '<section class="sec">' +
-        '<div class="sec-head">' +
-          '<h2>' + esc(sec.label) + '</h2>' +
-          '<span class="sec-sum">' + money(sec.summe) + '</span>' +
-        '</div>' +
-        '<table>' +
-          '<thead><tr>' +
-            '<th>Person</th><th class="c-share">Anteil</th><th class="r">Offen</th>' +
-          '</tr></thead>' +
-          '<tbody>' + personZeilen(sec) + '</tbody>' +
-        '</table>' +
-      '</section>';
+    function personZelle(m) {
+      var r = roleOf(m);
+      var zusatz = r.id === 'spieler'
+        ? (m.number ? 'Nr. ' + esc(String(m.number)) : '')
+        : r.label;
+      return '<td class="c-name">' +
+        '<span class="av">' + esc(initials(m.name)) + '</span>' +
+        '<span class="nm">' + esc(m.name) +
+          (zusatz ? ' <span class="muted">' + zusatz + '</span>' : '') +
+        '</span></td>';
+    }
+
+    var kopf = '<tr>' +
+      '<th class="c-name">Person</th>' +
+      spalten.map(function (k) { return '<th class="r">' + esc(k.label) + '</th>'; }).join('') +
+      '<th class="r c-total">Gesamt</th>' +
+    '</tr>';
+
+    var koerper = tab.personen.map(function (p) {
+      var zeile = '<tr class="person">' + personZelle(p.m) +
+        spalten.map(function (k) {
+          return '<td class="r">' + betrag(p.arten[k.id].open) + '</td>';
+        }).join('') +
+        '<td class="r c-total">' + money(p.open) + '</td>' +
+      '</tr>';
+
+      /* Einzelposten über die ganze Breite statt in den schmalen Spalten:
+         dort bräche „Anteil Trikotsatz" mitten im Wort um. Die Art steht
+         vorn, damit die Aufteilung auch hier zu erkennen ist. */
+      if (details) {
+        var listen = spalten.filter(function (k) {
+          return p.arten[k.id].items.length;
+        }).map(function (k) {
+          return '<span class="art"><i>' + esc(k.label) + '</i>' +
+            p.arten[k.id].items.map(function (t) {
+              return '<em>' + esc(t.note || t.category) +
+                ' <b>' + money(openAmount(t)) + '</b></em>';
+            }).join('') + '</span>';
+        }).join('');
+        zeile += '<tr class="detail">' +
+          '<td colspan="' + (spalten.length + 2) + '">' + listen + '</td></tr>';
+      }
+      return zeile;
     }).join('');
+
+    var fuss = '<tr>' +
+      '<td class="c-name">Summe</td>' +
+      spalten.map(function (k) {
+        return '<td class="r">' + money(tab.summen[k.id]) + '</td>';
+      }).join('') +
+      '<td class="r c-total">' + money(tab.gesamt) + '</td>' +
+    '</tr>';
 
     var wer = ROLES.filter(function (r) {
       return rows.some(function (x) { return roleOf(x.m).id === r.id; });
-    }).map(function (r) { return r.label; }).join(' · ');
+    }).map(function (r) { return r.label; }).join(' und ');
 
     return '' +
       '<div class="doc">' +
@@ -1309,29 +1339,28 @@
             '</svg>' +
             '<div>' +
               '<div class="team">' + esc(state.team.name) + '</div>' +
-              '<div class="band-sub">Saison ' + esc(currentSeason().name) +
+              '<div class="band-sub">Offene Beträge · Saison ' + esc(currentSeason().name) +
                 ' · Stand ' + fmtDate(todayISO()) + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="band-right">' +
             '<div class="band-label">Offen gesamt</div>' +
-            '<div class="band-total">' + money(summe) + '</div>' +
+            '<div class="band-total">' + money(tab.gesamt) + '</div>' +
           '</div>' +
         '</header>' +
 
-        '<h1>Offene Beträge</h1>' +
         '<p class="lead">' + rows.length + (rows.length === 1 ? ' Person' : ' Personen') +
           (wer ? ' · ' + esc(wer) : '') +
-          ' · Bitte bei der Kassenwartin oder dem Kassenwart ausgleichen.</p>' +
+          ' · Bitte beim Kassenwart ausgleichen.</p>' +
 
-        abschnitte +
+        '<table>' +
+          '<thead>' + kopf + '</thead>' +
+          '<tbody>' + koerper + '</tbody>' +
+          '<tfoot>' + fuss + '</tfoot>' +
+        '</table>' +
 
-        '<div class="sum">' +
-          '<span>Gesamt</span><span class="sum-val">' + money(summe) + '</span>' +
-        '</div>' +
-
-        '<p class="foot">Mannschaftskasse · erstellt am ' + fmtDate(todayISO()) +
-          ' · Angaben ohne Gewähr, bei Unstimmigkeiten bitte melden.</p>' +
+        '<p class="foot">' + esc(state.team.name) + ' · Mannschaftskasse · erstellt am ' +
+          fmtDate(todayISO()) + ' · Angaben ohne Gewähr, bei Unstimmigkeiten bitte melden.</p>' +
       '</div>';
   }
 

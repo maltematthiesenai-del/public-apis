@@ -888,126 +888,114 @@ table.data th { color: var(--accent-text); font-weight: 620; }
 #printRoot { display: none; }
 
 @media print {
-  /* Das Blatt ist durchgehend hell — nur die Kopfzeile ist dunkel, und zwar
-     über die ganze Papierbreite. Hintergründe müssen ausdrücklich erlaubt
-     werden, sonst druckt der Browser sie weg. */
+  /* Schlichtes A4-Blatt: durchgehend hell, einzig die Kopfzeile ist dunkel.
+     Hintergründe müssen ausdrücklich erlaubt werden, sonst druckt der
+     Browser sie weg. */
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-  @page { size: A4; margin: 16mm; }
+  /* 15 mm ringsum: genug Rand für jeden Drucker, und der Satzspiegel von
+     180 mm trägt die Spalten ohne Gedränge. */
+  @page { size: A4 portrait; margin: 15mm; }
 
-  body { background: #fff; color: #131a14; }
+  html, body { background: #fff; color: #131a14; }
   body > *:not(#printRoot) { display: none !important; }
 
   #printRoot { display: block; font-family: var(--font); color: #131a14; }
+  /* Nichts darf über den Satzspiegel hinausragen — sonst skaliert der
+     Browser das Blatt herunter oder schiebt eine leere Seite hinterher. */
+  .doc { width: 100%; max-width: 180mm; box-sizing: border-box; }
+  .doc * { box-sizing: border-box; }
 
-  /* Kopfzeile bis an die Blattkante: der Seitenrand wird für diesen einen
-     Block mit negativen Außenabständen zurückgenommen und als Innenabstand
-     wieder draufgelegt. So sitzt der Text weiter in der Spalte. */
+  /* Kopfzeile */
   .doc .band {
-    display: flex; align-items: center; justify-content: space-between; gap: 10mm;
+    display: flex; align-items: center; justify-content: space-between; gap: 8mm;
     background: #151a17; color: #fff;
-    margin: -16mm -16mm 0;
-    padding: 11mm 16mm;
+    border-radius: 3mm;
+    padding: 7mm 8mm;
   }
-  .doc .band-left { display: flex; align-items: center; gap: 5mm; min-width: 0; }
-  .doc .mark { width: 13mm; height: 13mm; flex: none; }
+  .doc .band-left { display: flex; align-items: center; gap: 4.5mm; min-width: 0; }
+  .doc .mark { width: 11mm; height: 11mm; flex: none; }
   .doc .team {
-    font-size: 15pt; font-weight: 650; letter-spacing: -0.02em;
+    font-size: 14pt; font-weight: 650; letter-spacing: -0.02em;
     overflow-wrap: anywhere;
   }
-  .doc .band-sub { font-size: 9pt; color: #a9b5ac; margin-top: 1mm; }
+  .doc .band-sub { font-size: 8.5pt; color: #a9b5ac; margin-top: 1.2mm; }
   /* Die Summe behält ihren Platz und bricht nie um — sonst landet bei
      vierstelligen Beträgen das Euro-Zeichen auf einer eigenen Zeile. */
   .doc .band-right { text-align: right; flex: none; }
   .doc .band-label {
-    font-size: 7.5pt; font-weight: 650; text-transform: uppercase;
+    font-size: 7pt; font-weight: 650; text-transform: uppercase;
     letter-spacing: 0.1em; color: #a9b5ac;
   }
   .doc .band-total {
-    font-size: 20pt; font-weight: 680; color: #b4f038;
+    font-size: 18pt; font-weight: 680; color: #b4f038;
     letter-spacing: -0.03em; margin-top: 1mm;
     font-variant-numeric: tabular-nums; white-space: nowrap;
   }
 
-  .doc h1 {
-    font-size: 17pt; font-weight: 640; letter-spacing: -0.025em;
-    margin: 10mm 0 1mm;
-  }
-  .doc .lead { font-size: 10pt; color: #6d786f; margin: 0 0 8mm; }
+  .doc .lead { font-size: 9.5pt; color: #6d786f; margin: 6mm 0 4mm; }
 
-  /* Abschnitte: Strafen, Beiträge, Sonstiges */
-  /* Lange Abschnitte dürfen umbrechen — nur die Überschrift bleibt bei ihrer
-     Tabelle, damit sie nie allein am Seitenfuß steht. */
-  .doc .sec { margin-bottom: 9mm; }
-  .doc .sec-head {
-    display: flex; align-items: baseline; justify-content: space-between;
-    gap: 6mm; margin-bottom: 3mm;
-    break-after: avoid;
+  /* Eine Zeile je Person, je Art eine Spalte */
+  .doc table {
+    width: 100%; border-collapse: collapse; font-size: 10.5pt;
+    table-layout: fixed;
   }
-  .doc .sec-head h2 {
-    font-size: 11.5pt; font-weight: 660; margin: 0;
-    letter-spacing: 0.02em;
-  }
-  .doc .sec-sum {
-    font-size: 11.5pt; font-weight: 660; color: #4a6f09;
-    font-variant-numeric: tabular-nums; white-space: nowrap;
-  }
+  .doc thead { display: table-header-group; }   /* auf jeder Seite wiederholen */
 
-  .doc table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+  .doc th, .doc td { padding: 3.2mm 2mm; vertical-align: middle; }
+  .doc th:first-child, .doc td:first-child { padding-left: 0; }
+  .doc th:last-child, .doc td:last-child { padding-right: 0; }
+
   .doc thead th {
-    font-size: 8pt; font-weight: 650; text-transform: uppercase; letter-spacing: 0.07em;
-    color: #4a6f09;                       /* dieselbe Akzentfarbe wie im hellen Design */
-    text-align: left; padding: 0 0 2.5mm;
+    font-size: 7.5pt; font-weight: 650; text-transform: uppercase; letter-spacing: 0.07em;
+    color: #4a6f09;
+    text-align: left; padding-top: 0; padding-bottom: 2.5mm;
     border-bottom: 0.4pt solid #cfd8c6;
   }
   .doc th.r, .doc td.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .doc th.c-share, .doc td.c-share { width: 32mm; }
+  .doc .c-name { width: 62mm; }
+  .doc .c-total { width: 26mm; }
 
   .doc tr { break-inside: avoid; }
-  /* Die Trennlinie steht ÜBER jeder Person, nicht unter ihr — sonst schnitte
-     sie bei aufgeklappten Einzelposten zwischen Person und ihren Posten. */
-  .doc tbody td { padding: 3.6mm 0; vertical-align: middle; }
+  .doc tbody tr.person:not(:first-child) td { border-top: 0.4pt solid #e8ebe3; }
   .doc tr.person td { font-weight: 560; }
-  .doc tbody tr.person:not(:first-child) td { border-top: 0.4pt solid #e4e8de; }
+  .doc td.c-total { font-weight: 660; }
+  .doc .nil { color: #b9c0ba; }
 
   /* Kreis mit Initialen wie in den Listen der App */
   .doc .av {
-    display: inline-block; width: 8mm; height: 8mm; line-height: 8mm;
+    display: inline-block; width: 7.5mm; height: 7.5mm; line-height: 7.5mm;
     border-radius: 50%; background: #eef2e6; color: #4b554d;
-    font-size: 7.5pt; font-weight: 680; text-align: center;
-    margin-right: 3mm; vertical-align: middle;
+    font-size: 7pt; font-weight: 680; text-align: center;
+    margin-right: 2.5mm; vertical-align: middle;
   }
-  .doc .nm { vertical-align: middle; }
+  .doc .nm { vertical-align: middle; overflow-wrap: anywhere; }
   .doc .muted { color: #8a938b; font-weight: 400; }
 
-  /* Anteilsbalken wie in der Übersichtstabelle */
-  .doc .bar {
-    display: block; height: 1.6mm; border-radius: 1mm;
-    background: #e8ece2; overflow: hidden;
-  }
-  .doc .bar > span {
-    display: block; height: 100%; border-radius: 1mm;
-    background: #74a015;
-  }
-
+  /* Einzelposten: eine Zeile je Art, über die ganze Breite — in den schmalen
+     Zahlenspalten bräche der Text sonst mitten im Wort um. */
   .doc tr.detail td {
-    font-size: 9pt; color: #6d786f; font-weight: 400;
-    padding: 0 0 2.6mm 11mm; border-bottom: 0;
+    padding: 0 0 3.4mm 10mm; border-top: 0;
+    font-size: 8.5pt; color: #6d786f; font-weight: 400;
   }
-  .doc tr.detail td.r { padding-right: 0; }
+  .doc .art { display: block; line-height: 1.6; }
+  .doc .art i {
+    font-style: normal; font-weight: 650; color: #4a6f09;
+    font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.06em;
+    margin-right: 2.5mm;
+  }
+  .doc .art em { font-style: normal; }
+  .doc .art em + em::before { content: ' · '; color: #b9c0ba; }
+  .doc .art b { font-weight: 560; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-  /* Gesamtsumme über alle Abschnitte */
-  .doc .sum {
-    display: flex; align-items: baseline; justify-content: space-between;
-    gap: 6mm; margin-top: 1mm; padding-top: 3.5mm;
+  .doc tfoot td {
+    padding-top: 3.5mm; padding-bottom: 0;
     border-top: 0.8pt solid #131a14;
-    font-size: 12.5pt; font-weight: 680;
-    break-inside: avoid;
+    font-size: 11pt; font-weight: 680;
   }
-  .doc .sum-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   .doc .foot {
-    margin-top: 8mm; font-size: 8.5pt; color: #99a29a;
-    border-top: 0.4pt solid #e4e8de; padding-top: 3mm;
+    margin-top: 10mm; font-size: 8pt; color: #99a29a;
+    border-top: 0.4pt solid #e8ebe3; padding-top: 3mm;
   }
 }

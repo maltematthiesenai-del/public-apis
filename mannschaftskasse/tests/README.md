@@ -45,10 +45,12 @@ ab Werk fehlt und sich dazuschalten lässt, dass Buchungen ohne Person und
 bereits bezahlte Posten draußen bleiben, dass bei Teilzahlungen nur der Rest
 erscheint, dass die Gesamtsumme stimmt, dass der Text in der Zwischenablage
 landet und dass im Druck nur das Dokument übrig bleibt. Dazu die Unterteilung:
-Strafen und Beiträge stehen in eigenen Abschnitten mit eigener Summe, ein
-Beitrag landet nie unter den Strafen, leere Abschnitte fallen weg und die
-Abschnittssummen ergeben zusammen die Gesamtsumme. Und das Aussehen des
-Blattes: hell bis auf die Kopfzeile, die bis an den Papierrand reicht.
+Strafen und Beiträge stehen bei jeder Person in eigenen Spalten, leere Spalten
+fallen weg und die Spaltensummen ergeben zusammen die Gesamtsumme. Und das
+Aussehen des Blattes: hell bis auf die Kopfzeile, nichts läuft über den
+Satzspiegel von 180 mm hinaus, und keine Schrift ist so hell, dass sie auf
+Weiß untergeht — die Klasse `.pos` der Oberfläche hatte genau das einmal
+ins Blatt getragen.
 
 Die Tests sind so gebaut, dass sie gegen fehlerhafte Fassungen durchfallen —
 gegen den Stand vor der Prüfung vom August 2026 melden sie acht Abweichungen.
