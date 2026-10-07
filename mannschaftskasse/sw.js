@@ -8,7 +8,7 @@
 
    Bei Änderungen an den Dateien CACHE hochzählen. */
 
-var CACHE = 'mannschaftskasse-v15';
+var CACHE = 'mannschaftskasse-v16';
 var NETZ_TIMEOUT = 3500;
 
 var ASSETS = [

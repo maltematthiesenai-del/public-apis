@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-10-02.1';
+  var APP_VERSION = '2026-10-07.1';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -1149,6 +1149,193 @@
   }
 
   /* ---------------------------------------------------------------------
+     Offene Forderungen weitergeben
+
+     Gedacht für die Mannschaftsgruppe: eine Liste, wer der Kasse noch was
+     schuldet. Trainer sind ab Werk nicht dabei — sie zahlen in der Regel
+     keine Beiträge, und die Liste soll an die Mannschaft gehen.
+     ------------------------------------------------------------------ */
+
+  function openClaimsFor(rollen) {
+    return squadOrder().map(function (m) {
+      if (rollen.indexOf(roleOf(m).id) < 0) return null;
+      var items = seasonTx().filter(function (t) {
+        return t.memberId === m.id && t.type === 'in' && openAmount(t) > 0;
+      }).sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+      if (!items.length) return null;
+      return {
+        m: m, items: items,
+        open: items.reduce(function (s, t) { return s + openAmount(t); }, 0)
+      };
+    }).filter(Boolean);
+  }
+
+  function claimsTitle() {
+    return 'Offene Beträge · ' + state.team.name;
+  }
+
+  // Für den Gruppenchat: schlichte Zeilen, keine festen Spaltenbreiten —
+  // in Chat-Schriften verrutschen ausgerichtete Spalten sonst.
+  function claimsText(rows, details) {
+    var out = [claimsTitle(),
+      'Saison ' + currentSeason().name + ' · Stand ' + fmtDate(todayISO()), ''];
+    rows.forEach(function (r) {
+      out.push(personLabel(r.m) + ': ' + money(r.open));
+      if (details) {
+        r.items.forEach(function (t) {
+          out.push('   · ' + fmtDate(t.date) + ' ' + (t.note || t.category) +
+            ' — ' + money(openAmount(t)));
+        });
+      }
+    });
+    var summe = rows.reduce(function (s, r) { return s + r.open; }, 0);
+    out.push('');
+    out.push('Gesamt: ' + money(summe));
+    return out.join('\n');
+  }
+
+  function personLabel(m) {
+    var r = roleOf(m);
+    if (r.id === 'spieler') return m.name + (m.number ? ' (' + m.number + ')' : '');
+    return m.name + ' (' + r.label + ')';
+  }
+
+  function claimsPrintHTML(rows, details) {
+    var summe = rows.reduce(function (s, r) { return s + r.open; }, 0);
+    return '<h1>' + esc(claimsTitle()) + '</h1>' +
+      '<p class="meta">Saison ' + esc(currentSeason().name) +
+        ' · Stand ' + fmtDate(todayISO()) + '</p>' +
+      '<table><thead><tr><th>Person</th><th class="r">Offen</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr><td>' + esc(personLabel(r.m)) + '</td>' +
+          '<td class="r">' + money(r.open) + '</td></tr>' +
+          (details ? r.items.map(function (t) {
+            return '<tr class="detail"><td>' + fmtDate(t.date) + ' · ' +
+              esc(t.note || t.category) + '</td><td class="r">' +
+              money(openAmount(t)) + '</td></tr>';
+          }).join('') : '');
+      }).join('') +
+      '</tbody><tfoot><tr><td>Gesamt</td><td class="r">' + money(summe) + '</td></tr></tfoot>' +
+      '</table>';
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    // Ältere Browser und unsichere Verbindungen kennen die Zwischenablage nicht.
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) resolve(); else reject(new Error('nicht kopiert'));
+    });
+  }
+
+  function shareClaimsDialog() {
+    var rollen = ['spieler', 'betreuer'];   // Trainer bewusst nicht
+    var details = false;
+
+    function rows() { return openClaimsFor(rollen); }
+
+    function vorschau(modal) {
+      var r = rows();
+      var summe = r.reduce(function (a, x) { return a + x.open; }, 0);
+      $('[data-preview]', modal).textContent = r.length
+        ? claimsText(r, details)
+        : 'Für die gewählten Rollen steht nichts offen.';
+      $('[data-sum]', modal).textContent = r.length
+        ? r.length + (r.length === 1 ? ' Person · ' : ' Personen · ') + money(summe)
+        : 'nichts offen';
+      $$('[data-share-act]', modal).forEach(function (b) { b.disabled = !r.length; });
+    }
+
+    var body =
+      '<div class="form-grid">' +
+        '<div class="field">' +
+          '<label>Wer kommt in die Liste?</label>' +
+          '<div class="chips chips-sm">' +
+            ROLES.map(function (r) {
+              return '<button type="button" class="chip" data-role-toggle="' + r.id + '" ' +
+                'aria-pressed="' + (rollen.indexOf(r.id) > -1) + '">' + esc(r.label) + '</button>';
+            }).join('') +
+          '</div>' +
+          '<span class="hint">Buchungen ohne Person sind nie dabei — sie gehören niemandem.</span>' +
+        '</div>' +
+
+        '<label class="checkline">' +
+          '<input type="checkbox" id="sh-details">' +
+          '<span>Einzelposten auflisten</span>' +
+        '</label>' +
+
+        '<div class="field">' +
+          '<label>Vorschau <span class="hint" data-sum></span></label>' +
+          '<pre class="preview" data-preview></pre>' +
+        '</div>' +
+      '</div>';
+
+    var teilenMoeglich = !!(navigator.share);
+
+    openModal({
+      title: 'Offene Beträge teilen',
+      body: body,
+      footer:
+        '<button class="btn" data-close>Schließen</button>' +
+        '<button class="btn" data-share-act data-print>Als PDF</button>' +
+        '<button class="btn btn-primary" data-share-act data-send>' +
+          (teilenMoeglich ? 'Teilen' : 'Text kopieren') + '</button>',
+      onMount: function (modal) {
+        vorschau(modal);
+
+        modal.addEventListener('click', function (e) {
+          var chip = e.target.closest('[data-role-toggle]');
+          if (!chip) return;
+          var id = chip.dataset.roleToggle;
+          var i = rollen.indexOf(id);
+          if (i > -1) rollen.splice(i, 1); else rollen.push(id);
+          chip.setAttribute('aria-pressed', String(rollen.indexOf(id) > -1));
+          vorschau(modal);
+        });
+
+        $('#sh-details', modal).addEventListener('change', function (e) {
+          details = e.target.checked;
+          vorschau(modal);
+        });
+
+        $('[data-print]', modal).addEventListener('click', function () {
+          var r = rows();
+          if (!r.length) return;
+          // Eigener Druckbereich: Das Stylesheet blendet für den Druck alles
+          // andere aus, damit kein Teil der Oberfläche auf dem Blatt landet.
+          $('#printRoot').innerHTML = claimsPrintHTML(r, details);
+          window.print();
+        });
+
+        $('[data-send]', modal).addEventListener('click', function () {
+          var r = rows();
+          if (!r.length) return;
+          var text = claimsText(r, details);
+          if (teilenMoeglich) {
+            navigator.share({ title: claimsTitle(), text: text })
+              .catch(function () { /* abgebrochen ist kein Fehler */ });
+            return;
+          }
+          copyText(text)
+            .then(function () { toast('Liste kopiert — jetzt in die Gruppe einfügen.'); })
+            .catch(function () { toast('Kopieren hat nicht geklappt. Text markieren und von Hand kopieren.'); });
+        });
+      }
+    });
+  }
+
+  /* ---------------------------------------------------------------------
      Saison anlegen, umbenennen, löschen
      ------------------------------------------------------------------ */
 
@@ -1657,7 +1844,10 @@
     /* Volle Breite: wer der Kasse noch etwas schuldet. */
     html += '<section class="card g-full">' +
       '<div class="card-head"><h2>Offene Beträge</h2>' +
-        '<a class="btn btn-sm btn-ghost" href="#/spieler">Alle Spieler</a></div>' +
+        '<span style="display:flex;gap:8px;align-items:center">' +
+          '<button class="btn btn-sm" data-action="share-claims">Liste teilen</button>' +
+          '<a class="btn btn-sm btn-ghost" href="#/spieler">Alle</a>' +
+        '</span></div>' +
       (debtors.length
         ? '<div class="dtable">' +
           '<div class="dtable-head">' +
@@ -2280,6 +2470,7 @@
     'export-json': exportJSON,
     'import-json': importJSON,
     'new-season': newSeasonDialog,
+    'share-claims': shareClaimsDialog,
     'demo': loadDemo,
     'reset': resetAll,
     'check-update': function () {

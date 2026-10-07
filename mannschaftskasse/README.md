@@ -121,6 +121,19 @@ und „Rückgängig" im Hinweis nimmt die letzte Zahlung sofort zurück.
 Der Kassenstand zählt immer nur das Geld, das tatsächlich geflossen ist —
 bei einer angezahlten Forderung also den bezahlten Teil.
 
+**Liste teilen:** Über den Knopf bei den offenen Beträgen entsteht eine
+Aufstellung für die Mannschaftsgruppe — wer schuldet der Kasse noch was.
+Vorausgewählt sind **Spieler und Betreuer**; der Trainerstab bleibt außen vor
+und lässt sich bei Bedarf dazuschalten. Buchungen ohne Person sind nie dabei,
+weil sie niemandem zuzuordnen sind. Auf Wunsch stehen die Einzelposten mit
+Datum darunter.
+
+Zwei Wege hinaus: **Teilen** öffnet auf dem Handy die Teilen-Auswahl, sodass
+die Liste direkt in WhatsApp oder Signal landet (wo das nicht geht, wandert
+der Text in die Zwischenablage), und **Als PDF** öffnet den Druckdialog mit
+einer sauberen Seite zum Anhängen. Gezeigt wird immer der offene Rest, bei
+angezahlten Forderungen also nur der noch fehlende Teil.
+
 Der Zahltag wird getrennt vom Buchungstag geführt: Eine Strafe aus dem März,
 die im August bezahlt wird, erscheint im Diagramm im August. Im Buchungsdialog
 lässt sich das Feld „Bezahlt am" jederzeit korrigieren.

@@ -9,6 +9,7 @@ node tests/betrag.js                                 # Betragserkennung
 NODE_PATH=$(npm root -g) node tests/csv.js           # Spaltensummen im CSV
 NODE_PATH=$(npm root -g) node tests/invarianten.js   # Zahlen gegeneinander
 NODE_PATH=$(npm root -g) node tests/rollen.js        # Rollen im Kader
+NODE_PATH=$(npm root -g) node tests/teilen.js        # Liste der offenen Beträge
 ```
 
 **`formeln.js`** erzeugt 140 zufällige, aber reproduzierbare Buchungen — rund
@@ -38,6 +39,12 @@ Seiten können für sich richtig sein und trotzdem nicht zusammenpassen.
 Zählung im Kader, ändert eine Rolle nachträglich und sieht nach, ob die Person
 in die andere Gruppe wandert. Außerdem: Daten ohne Rollenangabe erscheinen als
 Spieler, und der Sammelbeitrag trifft nur die gewählte Gruppe.
+
+**`teilen.js`** prüft die Liste für die Mannschaftsgruppe: dass der Trainer
+ab Werk fehlt und sich dazuschalten lässt, dass Buchungen ohne Person und
+bereits bezahlte Posten draußen bleiben, dass bei Teilzahlungen nur der Rest
+erscheint, dass die Gesamtsumme stimmt, dass der Text in der Zwischenablage
+landet und dass im Druck nur das Dokument übrig bleibt.
 
 Die Tests sind so gebaut, dass sie gegen fehlerhafte Fassungen durchfallen —
 gegen den Stand vor der Prüfung vom August 2026 melden sie acht Abweichungen.
