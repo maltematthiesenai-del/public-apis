@@ -131,7 +131,10 @@ Datum darunter.
 Zwei Wege hinaus: **Teilen** öffnet auf dem Handy die Teilen-Auswahl, sodass
 die Liste direkt in WhatsApp oder Signal landet (wo das nicht geht, wandert
 der Text in die Zwischenablage), und **Als PDF** öffnet den Druckdialog mit
-einer sauberen Seite zum Anhängen. Gezeigt wird immer der offene Rest, bei
+einem Blatt im Stil der App: dunkles Kopfband mit Logo, Vereinsname und der
+Gesamtsumme in Limette, darunter die Tabelle im hellen Design mit
+Anteilsbalken und Initialenkreisen wie in den Listen. Nur das Kopfband ist
+dunkel — eine ganz dunkle Seite würde auf Papier grau und frisst Toner. Gezeigt wird immer der offene Rest, bei
 angezahlten Forderungen also nur der noch fehlende Teil.
 
 Der Zahltag wird getrennt vom Buchungstag geführt: Eine Strafe aus dem März,

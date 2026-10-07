@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-10-07.1';
+  var APP_VERSION = '2026-10-07.2';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -1200,23 +1200,77 @@
     return m.name + ' (' + r.label + ')';
   }
 
+  /* Das Blatt folgt dem hellen Design der App: Limette als Akzent, dieselbe
+     Tabellenform, dieselben Haarlinien. Dunkel ist nur das Kopfband — eine
+     ganz dunkle Seite wäre auf Papier grau und würde Toner fressen. */
   function claimsPrintHTML(rows, details) {
     var summe = rows.reduce(function (s, r) { return s + r.open; }, 0);
-    return '<h1>' + esc(claimsTitle()) + '</h1>' +
-      '<p class="meta">Saison ' + esc(currentSeason().name) +
+    var groesste = rows.reduce(function (m, r) { return Math.max(m, r.open); }, 0);
+
+    var logo =
+      '<svg class="mark" viewBox="0 0 512 512" aria-hidden="true">' +
+        '<circle cx="256" cy="256" r="240" fill="#b4f038"/>' +
+        '<g fill="none" stroke="#14210a" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">' +
+          '<circle cx="256" cy="256" r="150"/>' +
+          '<path d="M256 182l71 51.6-27.1 83.4h-87.8l-27.1-83.4z" fill="#14210a"/>' +
+          '<path d="M256 108v74M132 198l79 53M380 198l-79 53M176 372l40-52M336 372l-40-52"/>' +
+        '</g>' +
+      '</svg>';
+
+    return '<div class="doc">' +
+      '<header class="band">' +
+        '<div class="band-left">' + logo +
+          '<div>' +
+            '<div class="team">' + esc(state.team.name) + '</div>' +
+            '<div class="band-sub">Saison ' + esc(currentSeason().name) + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="band-right">' +
+          '<div class="band-sub">Offen gesamt</div>' +
+          '<div class="band-total">' + money(summe) + '</div>' +
+        '</div>' +
+      '</header>' +
+
+      '<h1>Offene Beträge</h1>' +
+      '<p class="lead">' + rows.length + (rows.length === 1 ? ' Person' : ' Personen') +
         ' · Stand ' + fmtDate(todayISO()) + '</p>' +
-      '<table><thead><tr><th>Person</th><th class="r">Offen</th></tr></thead><tbody>' +
-      rows.map(function (r) {
-        return '<tr><td>' + esc(personLabel(r.m)) + '</td>' +
-          '<td class="r">' + money(r.open) + '</td></tr>' +
-          (details ? r.items.map(function (t) {
-            return '<tr class="detail"><td>' + fmtDate(t.date) + ' · ' +
-              esc(t.note || t.category) + '</td><td class="r">' +
-              money(openAmount(t)) + '</td></tr>';
-          }).join('') : '');
-      }).join('') +
-      '</tbody><tfoot><tr><td>Gesamt</td><td class="r">' + money(summe) + '</td></tr></tfoot>' +
-      '</table>';
+
+      '<table>' +
+        '<thead><tr>' +
+          '<th>Person</th>' +
+          '<th class="c-share">Anteil</th>' +
+          '<th class="r">Offen</th>' +
+        '</tr></thead>' +
+        '<tbody>' +
+        rows.map(function (r) {
+          var breite = groesste > 0 ? Math.max(6, Math.round(r.open / groesste * 100)) : 0;
+          var rolle = roleOf(r.m);
+          var zusatz = rolle.id === 'spieler'
+            ? (r.m.number ? ' · ' + r.m.number : '')
+            : ' · ' + rolle.label;
+          return '<tr class="person">' +
+              '<td><span class="av">' + esc(initials(r.m.name)) + '</span>' +
+                '<span class="nm">' + esc(r.m.name) + '</span>' +
+                (zusatz ? '<span class="muted">' + esc(zusatz) + '</span>' : '') + '</td>' +
+              '<td class="c-share"><span class="bar"><span style="width:' + breite + '%"></span></span></td>' +
+              '<td class="r">' + money(r.open) + '</td>' +
+            '</tr>' +
+            (details ? r.items.map(function (t) {
+              return '<tr class="detail">' +
+                '<td>' + fmtDate(t.date) + ' · ' + esc(t.note || t.category) + '</td>' +
+                '<td class="c-share"></td>' +
+                '<td class="r">' + money(openAmount(t)) + '</td></tr>';
+            }).join('') : '');
+        }).join('') +
+        '</tbody>' +
+        '<tfoot><tr>' +
+          '<td>Gesamt</td><td class="c-share"></td>' +
+          '<td class="r">' + money(summe) + '</td>' +
+        '</tr></tfoot>' +
+      '</table>' +
+
+      '<p class="foot">Mannschaftskasse · erstellt am ' + fmtDate(todayISO()) + '</p>' +
+      '</div>';
   }
 
   function copyText(text) {
