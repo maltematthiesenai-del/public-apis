@@ -893,18 +893,34 @@ table.data th { color: var(--accent-text); font-weight: 620; }
      Browser sie weg. */
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-  /* 15 mm ringsum: genug Rand für jeden Drucker, und der Satzspiegel von
-     180 mm trägt die Spalten ohne Gedränge. */
+  /* ISO A4 hoch, 15 mm ringsum: genug Rand für jeden Drucker, und der
+     Satzspiegel von 180 × 267 mm trägt die Spalten ohne Gedränge. */
   @page { size: A4 portrait; margin: 15mm; }
 
-  html, body { background: #fff; color: #131a14; }
+  /* Die App setzt html und body auf volle Höhe — gedruckt hängt daran sonst
+     eine leere Seite. Ränder und Höhen hier bewusst zurücksetzen, damit der
+     Satzspiegel allein aus @page kommt. */
+  html, body {
+    background: #fff; color: #131a14;
+    margin: 0; padding: 0;
+    width: auto; height: auto; min-height: 0; max-height: none;
+    overflow: visible;
+  }
   body > *:not(#printRoot) { display: none !important; }
 
-  #printRoot { display: block; font-family: var(--font); color: #131a14; }
+  #printRoot {
+    display: block; font-family: var(--font); color: #131a14;
+    margin: 0; padding: 0;
+  }
   /* Nichts darf über den Satzspiegel hinausragen — sonst skaliert der
      Browser das Blatt herunter oder schiebt eine leere Seite hinterher. */
-  .doc { width: 100%; max-width: 180mm; box-sizing: border-box; }
+  .doc {
+    width: 100%; max-width: 180mm; box-sizing: border-box;
+    margin-left: auto; margin-right: auto;   /* mittig auch auf Letter */
+    orphans: 2; widows: 2;
+  }
   .doc * { box-sizing: border-box; }
+  .doc > *:last-child { margin-bottom: 0; }
 
   /* Kopfzeile */
   .doc .band {
@@ -912,6 +928,7 @@ table.data th { color: var(--accent-text); font-weight: 620; }
     background: #151a17; color: #fff;
     border-radius: 3mm;
     padding: 7mm 8mm;
+    break-inside: avoid; break-after: avoid;
   }
   .doc .band-left { display: flex; align-items: center; gap: 4.5mm; min-width: 0; }
   .doc .mark { width: 11mm; height: 11mm; flex: none; }
@@ -933,16 +950,20 @@ table.data th { color: var(--accent-text); font-weight: 620; }
     font-variant-numeric: tabular-nums; white-space: nowrap;
   }
 
-  .doc .lead { font-size: 9.5pt; color: #6d786f; margin: 6mm 0 4mm; }
+  .doc .lead { font-size: 9.5pt; color: #6d786f; margin: 5mm 0 4mm; break-after: avoid; }
 
   /* Eine Zeile je Person, je Art eine Spalte */
   .doc table {
     width: 100%; border-collapse: collapse; font-size: 10.5pt;
     table-layout: fixed;
   }
-  .doc thead { display: table-header-group; }   /* auf jeder Seite wiederholen */
+  /* Die Spaltenköpfe wiederholen sich auf jeder Seite, die Summenzeile
+     ausdrücklich NICHT: als table-footer-group stünde sie unter jeder Seite,
+     obwohl sie die Gesamtsumme meint. */
+  .doc thead { display: table-header-group; }
+  .doc tfoot { display: table-row-group; }
 
-  .doc th, .doc td { padding: 3.2mm 2mm; vertical-align: middle; }
+  .doc th, .doc td { padding: 3mm 2mm; vertical-align: middle; }
   .doc th:first-child, .doc td:first-child { padding-left: 0; }
   .doc th:last-child, .doc td:last-child { padding-right: 0; }
 
@@ -969,7 +990,13 @@ table.data th { color: var(--accent-text); font-weight: 620; }
     font-size: 7pt; font-weight: 680; text-align: center;
     margin-right: 2.5mm; vertical-align: middle;
   }
-  .doc .nm { vertical-align: middle; overflow-wrap: anywhere; }
+  /* Der Name steht in einem eigenen Kasten neben dem Kreis. Ohne das fiele
+     eine zweite Zeile („… Betreuer") unter den Kreis an den linken Rand. */
+  .doc .nm {
+    display: inline-block; vertical-align: middle;
+    width: calc(100% - 10.5mm);
+    overflow-wrap: anywhere;
+  }
   .doc .muted { color: #8a938b; font-weight: 400; }
 
   /* Einzelposten: eine Zeile je Art, über die ganze Breite — in den schmalen
@@ -988,6 +1015,8 @@ table.data th { color: var(--accent-text); font-weight: 620; }
   .doc .art em + em::before { content: ' · '; color: #b9c0ba; }
   .doc .art b { font-weight: 560; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+  /* Die Summenzeile gehört zur letzten Person, nicht allein auf eine Seite. */
+  .doc tfoot tr { break-inside: avoid; break-before: avoid; }
   .doc tfoot td {
     padding-top: 3.5mm; padding-bottom: 0;
     border-top: 0.8pt solid #131a14;
@@ -995,7 +1024,8 @@ table.data th { color: var(--accent-text); font-weight: 620; }
   }
 
   .doc .foot {
-    margin-top: 10mm; font-size: 8pt; color: #99a29a;
+    margin-top: 8mm; font-size: 8pt; color: #99a29a;
     border-top: 0.4pt solid #e8ebe3; padding-top: 3mm;
+    break-inside: avoid; break-before: avoid;
   }
 }

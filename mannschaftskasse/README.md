@@ -136,13 +136,24 @@ hat, wird gar nicht erst gezeigt.
 Zwei Wege hinaus: **Teilen** öffnet auf dem Handy die Teilen-Auswahl, sodass
 die Liste direkt in WhatsApp oder Signal landet (wo das nicht geht, wandert
 der Text in die Zwischenablage), und **Als PDF** öffnet den Druckdialog mit
-einem schlichten A4-Blatt: 15 mm Rand ringsum, oben ein dunkles Kopfband mit
-Logo, Vereinsname und Gesamtsumme, darunter eine Zeile je Person und je Art
-eine Spalte, zuletzt die Summenzeile. Nur das Kopfband ist dunkel — eine ganz
-dunkle Seite würde auf Papier grau und frisst Toner. Läuft die Liste über
-eine Seite hinaus, stehen die Spaltenköpfe auf jeder Seite erneut. Gezeigt
-wird immer der offene Rest, bei angezahlten Forderungen also nur der noch
-fehlende Teil.
+einem schlichten Blatt in **ISO A4 hoch**: 15 mm Rand ringsum, Satzspiegel
+also 180 × 267 mm. Oben ein dunkles Kopfband mit Logo, Vereinsname und
+Gesamtsumme, darunter eine Zeile je Person und je Art eine Spalte, zuletzt
+die Summenzeile. Nur das Kopfband ist dunkel — eine ganz dunkle Seite würde
+auf Papier grau und frisst Toner. Gezeigt wird immer der offene Rest, bei
+angezahlten Forderungen also nur der noch fehlende Teil.
+
+Zum Satz auf dem Blatt: Die Spaltenköpfe wiederholen sich auf jeder Seite,
+die Summenzeile ausdrücklich nicht — sie meint die Gesamtsumme über alle
+Seiten und stünde als Tabellenfuß sonst unter jeder einzelnen. Zeilen werden
+nicht mitten durchgeschnitten, und die Summe landet nie allein auf einer
+neuen Seite. Für den Druck werden Ränder und Höhen von `html` und `body`
+zurückgesetzt; ohne das hängt an der letzten Seite eine leere.
+
+Chrome schreibt die Seitengröße beim PDF-Export auf ganze Bildpunkte
+gerundet, das Blatt misst darum 209,89 × 297,01 statt 210 × 297 mm. Das sind
+0,1 mm, es kommt aus dem Browser und lässt sich per CSS nicht ändern — am
+Drucker landet ohnehin das physische Blatt.
 
 Der Zahltag wird getrennt vom Buchungstag geführt: Eine Strafe aus dem März,
 die im August bezahlt wird, erscheint im Diagramm im August. Im Buchungsdialog

@@ -50,7 +50,10 @@ fallen weg und die Spaltensummen ergeben zusammen die Gesamtsumme. Und das
 Aussehen des Blattes: hell bis auf die Kopfzeile, nichts läuft über den
 Satzspiegel von 180 mm hinaus, und keine Schrift ist so hell, dass sie auf
 Weiß untergeht — die Klasse `.pos` der Oberfläche hatte genau das einmal
-ins Blatt getragen.
+ins Blatt getragen. Zuletzt wird das fertige PDF nachgemessen: Seitengröße
+ISO A4 hoch (210 × 297 mm, 0,2 mm Spielraum für Chromes Rundung), eine
+kurze Liste auf genau einer Seite, kein Rand und keine feste Höhe am `body`
+und eine Summenzeile, die sich nicht auf jeder Seite wiederholt.
 
 Die Tests sind so gebaut, dass sie gegen fehlerhafte Fassungen durchfallen —
 gegen den Stand vor der Prüfung vom August 2026 melden sie acht Abweichungen.

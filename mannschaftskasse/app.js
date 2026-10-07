@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-10-07.4';
+  var APP_VERSION = '2026-10-07.5';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],

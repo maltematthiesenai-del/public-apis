@@ -157,10 +157,32 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
   pruef('Nichts läuft seitlich über', masse.ueberlauf<=1 && masse.seitenbreite<=681,
     JSON.stringify(masse));
 
+  /* Die App stellt html und body auf volle Höhe. Bliebe das im Druck stehen,
+     hinge am Blatt eine leere Seite. */
+  const rahmen = await p.evaluate(()=>{
+    const c=getComputedStyle(document.body), h=getComputedStyle(document.documentElement);
+    return {bodyRand:c.marginTop+' '+c.marginLeft, bodyHoehe:c.height, htmlHoehe:h.height,
+      tfoot:getComputedStyle(document.querySelector('.doc tfoot')).display};});
+  pruef('Kein Rand und keine feste Höhe am body',
+    rahmen.bodyRand==='0px 0px' && rahmen.bodyHoehe!=='1123px', JSON.stringify(rahmen));
+  /* Als table-footer-group stünde die Summenzeile unter JEDER Seite,
+     obwohl sie die Gesamtsumme über alle Seiten meint. */
+  pruef('Summenzeile wiederholt sich nicht je Seite',
+    rahmen.tfoot==='table-row-group', rahmen.tfoot);
+
+  /* Das fertige PDF nachmessen: ISO A4 hoch, 210 × 297 mm. Chrome rundet die
+     Seitengröße auf ganze Bildpunkte, daher 0,2 mm Spielraum. */
+  const pdf = await p.pdf({preferCSSPageSize:true});
+  const box = pdf.toString('latin1').match(/\/MediaBox\s*\[[^\]]*\]/);
+  const [bx,by] = box ? box[0].match(/[\d.]+/g).slice(2).map(n=>+n/72*25.4) : [0,0];
+  pruef('PDF-Seite ist ISO A4 hoch (210 × 297 mm)',
+    Math.abs(bx-210)<0.2 && Math.abs(by-297)<0.2,
+    bx.toFixed(2)+' × '+by.toFixed(2)+' mm');
+  const seiten = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)||[]).length;
+  pruef('Kurze Liste passt auf eine Seite', seiten===1, seiten+' Seite(n)');
+
   if (process.env.SP) {
-    // preferCSSPageSize: sonst überschreibt Playwright den Seitenrand aus
-    // @page — und genau der macht die randlose Kopfzeile aus.
-    await p.pdf({path:process.env.SP+'/offene-betraege.pdf', preferCSSPageSize:true});
+    require('fs').writeFileSync(process.env.SP+'/offene-betraege.pdf', pdf);
   }
   await p.emulateMedia({media:'screen'});
   if (process.env.SP) await p.screenshot({path:process.env.SP+'/teilen-dialog.png'});
