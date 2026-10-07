@@ -888,26 +888,29 @@ table.data th { color: var(--accent-text); font-weight: 620; }
 #printRoot { display: none; }
 
 @media print {
-  /* Das Blatt übernimmt das helle Design der App. Hintergründe müssen
-     ausdrücklich erlaubt werden, sonst druckt der Browser sie weg. */
+  /* Das Blatt ist durchgehend hell — nur die Kopfzeile ist dunkel, und zwar
+     über die ganze Papierbreite. Hintergründe müssen ausdrücklich erlaubt
+     werden, sonst druckt der Browser sie weg. */
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-  @page { size: A4; margin: 14mm; }
+  @page { size: A4; margin: 16mm; }
 
   body { background: #fff; color: #131a14; }
   body > *:not(#printRoot) { display: none !important; }
 
   #printRoot { display: block; font-family: var(--font); color: #131a14; }
 
-  /* Kopfband: der einzige dunkle Block auf der Seite */
+  /* Kopfzeile bis an die Blattkante: der Seitenrand wird für diesen einen
+     Block mit negativen Außenabständen zurückgenommen und als Innenabstand
+     wieder draufgelegt. So sitzt der Text weiter in der Spalte. */
   .doc .band {
     display: flex; align-items: center; justify-content: space-between; gap: 10mm;
     background: #151a17; color: #fff;
-    border-radius: 5mm;
-    padding: 7mm 8mm;
+    margin: -16mm -16mm 0;
+    padding: 11mm 16mm;
   }
   .doc .band-left { display: flex; align-items: center; gap: 5mm; min-width: 0; }
-  .doc .mark { width: 14mm; height: 14mm; flex: none; }
+  .doc .mark { width: 13mm; height: 13mm; flex: none; }
   .doc .team {
     font-size: 15pt; font-weight: 650; letter-spacing: -0.02em;
     overflow-wrap: anywhere;
@@ -916,6 +919,10 @@ table.data th { color: var(--accent-text); font-weight: 620; }
   /* Die Summe behält ihren Platz und bricht nie um — sonst landet bei
      vierstelligen Beträgen das Euro-Zeichen auf einer eigenen Zeile. */
   .doc .band-right { text-align: right; flex: none; }
+  .doc .band-label {
+    font-size: 7.5pt; font-weight: 650; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #a9b5ac;
+  }
   .doc .band-total {
     font-size: 20pt; font-weight: 680; color: #b4f038;
     letter-spacing: -0.03em; margin-top: 1mm;
@@ -924,9 +931,27 @@ table.data th { color: var(--accent-text); font-weight: 620; }
 
   .doc h1 {
     font-size: 17pt; font-weight: 640; letter-spacing: -0.025em;
-    margin: 9mm 0 1mm;
+    margin: 10mm 0 1mm;
   }
-  .doc .lead { font-size: 10pt; color: #6d786f; margin: 0 0 5mm; }
+  .doc .lead { font-size: 10pt; color: #6d786f; margin: 0 0 8mm; }
+
+  /* Abschnitte: Strafen, Beiträge, Sonstiges */
+  /* Lange Abschnitte dürfen umbrechen — nur die Überschrift bleibt bei ihrer
+     Tabelle, damit sie nie allein am Seitenfuß steht. */
+  .doc .sec { margin-bottom: 9mm; }
+  .doc .sec-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 6mm; margin-bottom: 3mm;
+    break-after: avoid;
+  }
+  .doc .sec-head h2 {
+    font-size: 11.5pt; font-weight: 660; margin: 0;
+    letter-spacing: 0.02em;
+  }
+  .doc .sec-sum {
+    font-size: 11.5pt; font-weight: 660; color: #4a6f09;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
 
   .doc table { width: 100%; border-collapse: collapse; font-size: 11pt; }
   .doc thead th {
@@ -971,10 +996,15 @@ table.data th { color: var(--accent-text); font-weight: 620; }
   }
   .doc tr.detail td.r { padding-right: 0; }
 
-  .doc tfoot td {
-    padding: 4mm 0 0; font-size: 12pt; font-weight: 680;
-    border-top: 0.8pt solid #131a14; border-bottom: 0;
+  /* Gesamtsumme über alle Abschnitte */
+  .doc .sum {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 6mm; margin-top: 1mm; padding-top: 3.5mm;
+    border-top: 0.8pt solid #131a14;
+    font-size: 12.5pt; font-weight: 680;
+    break-inside: avoid;
   }
+  .doc .sum-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   .doc .foot {
     margin-top: 8mm; font-size: 8.5pt; color: #99a29a;

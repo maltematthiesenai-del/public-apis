@@ -61,6 +61,20 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
   pruef('Teilzahlung zählt nur den Rest (4,00 €)', /Lukas Berger \(7\): 4,00 €/.test(anfang.text));
   pruef('Gesamtsumme stimmt (25+4+5 = 34,00 €)', /Gesamt: 34,00 €/.test(anfang.text));
   pruef('Zusammenfassung über der Vorschau', /3 Personen · 34,00 €/.test(anfang.summe), anfang.summe);
+
+  // Unterteilung: Strafen und Beiträge getrennt, jede mit eigener Summe
+  pruef('Abschnitt Strafen mit eigener Summe (15+10)', /STRAFEN — 25,00 €/.test(anfang.text));
+  pruef('Abschnitt Beiträge mit eigener Summe (4+5)', /BEITRÄGE — 9,00 €/.test(anfang.text));
+  pruef('Strafen stehen vor den Beiträgen',
+    anfang.text.indexOf('STRAFEN') < anfang.text.indexOf('BEITRÄGE'));
+  pruef('Kein leerer Abschnitt „Sonstiges"', !/SONSTIGES/.test(anfang.text));
+  // Abschnittssummen müssen die Gesamtsumme ergeben: 25 + 9 = 34
+  const teilsummen = [...anfang.text.matchAll(/— ([\d.]+),(\d\d) €/g)]
+    .reduce((s,m)=>s+parseInt(m[1].replace(/\./g,''),10)*100+parseInt(m[2],10),0);
+  pruef('Abschnittssummen ergeben die Gesamtsumme', teilsummen===3400, teilsummen+' Cent');
+  // Lukas hat nur einen Beitrag — er darf nicht unter den Strafen stehen
+  const strafenBlock = anfang.text.slice(anfang.text.indexOf('STRAFEN'), anfang.text.indexOf('BEITRÄGE'));
+  pruef('Beitrag steht nicht im Strafen-Abschnitt', !/Lukas/.test(strafenBlock));
   console.log('--- Vorschau ---\n'+anfang.text+'\n----------------');
 
   // Trainer dazuschalten
@@ -85,15 +99,42 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
   await p.click('[data-print]'); await p.waitForTimeout(500);
   const druck = await p.evaluate(()=>document.querySelector('#printRoot').innerHTML);
   pruef('Druckdokument gefüllt', /<h1>Offene Beträge/.test(druck) && /Gesamt/.test(druck) && !/Jörg/.test(druck));
+  pruef('Druckdokument ist unterteilt',
+    /<h2>Strafen<\/h2>/.test(druck) && /<h2>Beiträge<\/h2>/.test(druck) && !/Sonstiges/.test(druck));
   await p.emulateMedia({media:'print'});
   const sichtbar = await p.evaluate(()=>{
     const pr=getComputedStyle(document.querySelector('#printRoot')).display;
     const app=getComputedStyle(document.querySelector('.layout')).display;
     return {druckbereich:pr, oberflaeche:app};});
   pruef('Im Druck nur das Dokument', sichtbar.druckbereich==='block' && sichtbar.oberflaeche==='none', JSON.stringify(sichtbar));
-  await p.pdf({path:process.env.SP+'/offene-betraege.pdf', format:'A4', margin:{top:'18mm',bottom:'18mm',left:'18mm',right:'18mm'}});
+
+  /* Entweder alles dunkel oder alles hell: das Blatt ist hell, allein die
+     Kopfzeile ist dunkel — und die reicht bis an den Rand des Papiers. */
+  const farben = await p.evaluate(()=>{
+    const band=document.querySelector('.doc .band');
+    const doc=document.querySelector('.doc');
+    const hell=(el)=>{const c=getComputedStyle(el).backgroundColor.match(/\d+/g)||[255,255,255];
+      return (+c[0]+ +c[1]+ +c[2])/3;};
+    const blatt=[...document.querySelectorAll('.doc section, .doc table, .doc .sum, .doc h1')];
+    return {
+      seite:hell(document.body), kopf:hell(band),
+      dunkleKoerper:blatt.filter(e=>hell(e)<200 && getComputedStyle(e).backgroundColor!=='rgba(0, 0, 0, 0)').length,
+      ueberstandLinks: doc.getBoundingClientRect().left - band.getBoundingClientRect().left,
+      ueberstandRechts: band.getBoundingClientRect().right - doc.getBoundingClientRect().right
+    };});
+  pruef('Blatt hell, Kopfzeile dunkel', farben.seite>240 && farben.kopf<60, JSON.stringify(farben));
+  pruef('Kein weiterer dunkler Block auf dem Blatt', farben.dunkleKoerper===0);
+  pruef('Kopfzeile reicht über die Textspalte hinaus',
+    farben.ueberstandLinks>10 && farben.ueberstandRechts>10,
+    farben.ueberstandLinks.toFixed(0)+'px / '+farben.ueberstandRechts.toFixed(0)+'px');
+
+  if (process.env.SP) {
+    // preferCSSPageSize: sonst überschreibt Playwright den Seitenrand aus
+    // @page — und genau der macht die randlose Kopfzeile aus.
+    await p.pdf({path:process.env.SP+'/offene-betraege.pdf', preferCSSPageSize:true});
+  }
   await p.emulateMedia({media:'screen'});
-  await p.screenshot({path:process.env.SP+'/teilen-dialog.png'});
+  if (process.env.SP) await p.screenshot({path:process.env.SP+'/teilen-dialog.png'});
 
   console.log('Konsolenfehler:', err.length?err.join(' / '):'keine');
   console.log(fehler===0?'\nTEILEN FUNKTIONIERT':'\n'+fehler+' FEHLER');
