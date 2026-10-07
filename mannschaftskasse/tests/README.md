@@ -47,13 +47,21 @@ erscheint, dass die Gesamtsumme stimmt, dass der Text in der Zwischenablage
 landet und dass im Druck nur das Dokument übrig bleibt. Dazu die Unterteilung:
 Strafen und Beiträge stehen bei jeder Person in eigenen Spalten, leere Spalten
 fallen weg und die Spaltensummen ergeben zusammen die Gesamtsumme. Und das
-Aussehen des Blattes: hell bis auf die Kopfzeile, nichts läuft über den
-Satzspiegel von 180 mm hinaus, und keine Schrift ist so hell, dass sie auf
-Weiß untergeht — die Klasse `.pos` der Oberfläche hatte genau das einmal
-ins Blatt getragen. Zuletzt wird das fertige PDF nachgemessen: Seitengröße
-ISO A4 hoch (210 × 297 mm, 0,2 mm Spielraum für Chromes Rundung), eine
-kurze Liste auf genau einer Seite, kein Rand und keine feste Höhe am `body`
-und eine Summenzeile, die sich nicht auf jeder Seite wiederholt.
+Aussehen des Blattes: hell bis auf den Briefkopf, der über die volle
+Blattbreite läuft, dabei links wie rechts um genau 15 mm über den
+Satzspiegel ragt und dessen Text mit der Tabelle fluchtet. Keine Schrift ist
+so hell, dass sie auf Weiß untergeht — die Klasse `.pos` der Oberfläche
+hatte genau das einmal ins Blatt getragen.
+
+Zuletzt wird das fertige PDF auseinandergenommen: Seitengröße ISO A4 hoch
+(210 × 297 mm, 0,2 mm Spielraum für Chromes Rundung), eine kurze Liste auf
+genau einer Seite, kein Rand und keine feste Höhe am `body`, eine
+Summenzeile, die sich nicht auf jeder Seite wiederholt — und die
+Zeichenbefehle selbst: Die Inhaltsströme werden entpackt und jede
+Flächenfüllung nachgesehen. Keine Fläche, die mehr als ein halbes Blatt
+bedeckt, darf etwas anderes als Weiß sein. Nimmt man `color-scheme: light`
+aus dem Stylesheet, meldet der Test „794x1123 rgb 0.0706,0.0706,0.0706" —
+genau das schwarze Papier, das im Betrachter als Rahmen zu sehen war.
 
 Die Tests sind so gebaut, dass sie gegen fehlerhafte Fassungen durchfallen —
 gegen den Stand vor der Prüfung vom August 2026 melden sie acht Abweichungen.

@@ -136,19 +136,31 @@ hat, wird gar nicht erst gezeigt.
 Zwei Wege hinaus: **Teilen** öffnet auf dem Handy die Teilen-Auswahl, sodass
 die Liste direkt in WhatsApp oder Signal landet (wo das nicht geht, wandert
 der Text in die Zwischenablage), und **Als PDF** öffnet den Druckdialog mit
-einem schlichten Blatt in **ISO A4 hoch**: 15 mm Rand ringsum, Satzspiegel
-also 180 × 267 mm. Oben ein dunkles Kopfband mit Logo, Vereinsname und
-Gesamtsumme, darunter eine Zeile je Person und je Art eine Spalte, zuletzt
-die Summenzeile. Nur das Kopfband ist dunkel — eine ganz dunkle Seite würde
-auf Papier grau und frisst Toner. Gezeigt wird immer der offene Rest, bei
-angezahlten Forderungen also nur der noch fehlende Teil.
+einem schlichten Blatt in **ISO A4 hoch**. Oben ein dunkler Briefkopf über
+die volle Blattbreite mit Logo, Vereinsname und Gesamtsumme, darunter eine
+Zeile je Person und je Art eine Spalte, zuletzt die Summenzeile. Nur der
+Briefkopf ist dunkel — eine ganz dunkle Seite würde auf Papier grau und
+frisst Toner. Gezeigt wird immer der offene Rest, bei angezahlten
+Forderungen also nur der noch fehlende Teil.
 
-Zum Satz auf dem Blatt: Die Spaltenköpfe wiederholen sich auf jeder Seite,
-die Summenzeile ausdrücklich nicht — sie meint die Gesamtsumme über alle
-Seiten und stünde als Tabellenfuß sonst unter jeder einzelnen. Zeilen werden
-nicht mitten durchgeschnitten, und die Summe landet nie allein auf einer
-neuen Seite. Für den Druck werden Ränder und Höhen von `html` und `body`
-zurückgesetzt; ohne das hängt an der letzten Seite eine leere.
+Zum Satz auf dem Blatt: Der Rand von 15 mm liegt links und rechts am
+Druckbereich, nicht am `@page` — waagerechte Innenabstände gelten auf jeder
+Seite, und nur so kann der Briefkopf bis an die Blattkante laufen, während
+sein Text im selben Satzspiegel steht wie die Tabelle. Der Vereinsname sitzt
+dadurch genau über „Person", die Summe genau über „Gesamt". Den oberen Rand
+der Folgeseiten bringt der Spaltenkopf mit, der sich ohnehin auf jeder Seite
+wiederholt; der untere steht am `@page`, weil ihn dort kein Element halten
+könnte. Die Summenzeile wiederholt sich ausdrücklich nicht — sie meint die
+Gesamtsumme über alle Seiten und stünde als Tabellenfuß sonst unter jeder
+einzelnen. Zeilen werden nicht mitten durchgeschnitten, und die Summe landet
+nie allein auf einer neuen Seite.
+
+Zwei Dinge, die man dem Blatt nicht ansieht: Für den Druck werden Ränder und
+Höhen von `html` und `body` zurückgesetzt, sonst hängt an der letzten Seite
+eine leere. Und `color-scheme` wird auf `light` gestellt — die App läuft mit
+`dark`, und der Browser füllt dann das ganze Papier mit seiner dunklen
+Grundfarbe, bevor überhaupt ein Element gezeichnet wird. Im PDF sah man
+davon einen schwarzen Rahmen rings um den weißen Satzspiegel.
 
 Chrome schreibt die Seitengröße beim PDF-Export auf ganze Bildpunkte
 gerundet, das Blatt misst darum 209,89 × 297,01 statt 210 × 297 mm. Das sind

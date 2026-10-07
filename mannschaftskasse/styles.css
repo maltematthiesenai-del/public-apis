@@ -893,9 +893,17 @@ table.data th { color: var(--accent-text); font-weight: 620; }
      Browser sie weg. */
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-  /* ISO A4 hoch, 15 mm ringsum: genug Rand für jeden Drucker, und der
-     Satzspiegel von 180 × 267 mm trägt die Spalten ohne Gedränge. */
-  @page { size: A4 portrait; margin: 15mm; }
+  /* ISO A4 hoch. Oben und seitlich ohne Seitenrand, damit die Kopfzeile bis
+     an die Blattkante laufen kann — den Rand von 15 mm legt stattdessen der
+     Druckbereich selbst an, und der gilt dann auf jeder Seite. Unten bleibt
+     er am @page, weil dort kein Element den Abstand halten könnte. */
+  @page { size: A4 portrait; margin: 0 0 15mm; }
+
+  /* Ohne das hier bleibt das Papier schwarz: Die App läuft mit
+     „color-scheme: dark", und dann füllt der Browser das ganze Blatt mit
+     seiner dunklen Grundfarbe, bevor irgendein Element gezeichnet wird. Zu
+     sehen war davon der 15-mm-Rand rings um den weißen Satzspiegel. */
+  :root { color-scheme: light; }
 
   /* Die App setzt html und body auf volle Höhe — gedruckt hängt daran sonst
      eine leere Seite. Ränder und Höhen hier bewusst zurücksetzen, damit der
@@ -908,9 +916,11 @@ table.data th { color: var(--accent-text); font-weight: 620; }
   }
   body > *:not(#printRoot) { display: none !important; }
 
+  /* Der seitliche Rand sitzt hier statt am @page: waagerechte Innenabstände
+     gelten auf jeder Seite, senkrechte nur auf der ersten und letzten. */
   #printRoot {
     display: block; font-family: var(--font); color: #131a14;
-    margin: 0; padding: 0;
+    margin: 0; padding: 0 15mm;
   }
   /* Nichts darf über den Satzspiegel hinausragen — sonst skaliert der
      Browser das Blatt herunter oder schiebt eine leere Seite hinterher. */
@@ -922,12 +932,16 @@ table.data th { color: var(--accent-text); font-weight: 620; }
   .doc * { box-sizing: border-box; }
   .doc > *:last-child { margin-bottom: 0; }
 
-  /* Kopfzeile */
+  /* Kopfzeile als Briefkopf: dunkel über die ganze Blattbreite, aber mit
+     demselben Innenabstand wie der Text darunter. Dadurch steht der
+     Vereinsname genau über „Person" und die Summe genau über „Gesamt" —
+     die Kopfzeile sitzt im Satz und liegt nicht als Kasten obenauf. */
   .doc .band {
-    display: flex; align-items: center; justify-content: space-between; gap: 8mm;
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 8mm;
     background: #151a17; color: #fff;
-    border-radius: 3mm;
-    padding: 7mm 8mm;
+    margin: 0 -15mm;
+    padding: 13mm 15mm 10mm;
+    border-bottom: 1mm solid #b4f038;
     break-inside: avoid; break-after: avoid;
   }
   .doc .band-left { display: flex; align-items: center; gap: 4.5mm; min-width: 0; }
@@ -950,7 +964,7 @@ table.data th { color: var(--accent-text); font-weight: 620; }
     font-variant-numeric: tabular-nums; white-space: nowrap;
   }
 
-  .doc .lead { font-size: 9.5pt; color: #6d786f; margin: 5mm 0 4mm; break-after: avoid; }
+  .doc .band-sub2 { font-size: 8.5pt; color: #8d9a90; margin-top: 2.5mm; }
 
   /* Eine Zeile je Person, je Art eine Spalte */
   .doc table {
@@ -967,10 +981,13 @@ table.data th { color: var(--accent-text); font-weight: 620; }
   .doc th:first-child, .doc td:first-child { padding-left: 0; }
   .doc th:last-child, .doc td:last-child { padding-right: 0; }
 
+  /* Der obere Seitenrand steckt im Spaltenkopf: er wiederholt sich auf
+     jeder Seite und bringt den Abstand gleich mit. Auf der ersten Seite ist
+     es der Abstand zur Kopfzeile. */
   .doc thead th {
     font-size: 7.5pt; font-weight: 650; text-transform: uppercase; letter-spacing: 0.07em;
     color: #4a6f09;
-    text-align: left; padding-top: 0; padding-bottom: 2.5mm;
+    text-align: left; padding-top: 13mm; padding-bottom: 2.5mm;
     border-bottom: 0.4pt solid #cfd8c6;
   }
   .doc th.r, .doc td.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

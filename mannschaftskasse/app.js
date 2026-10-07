@@ -14,7 +14,7 @@
 
   // Wird unter „Mehr" angezeigt — daran erkennt man, ob eine Aktualisierung
   // auf dem Gerät angekommen ist. Bei Änderungen mitzählen.
-  var APP_VERSION = '2026-10-07.5';
+  var APP_VERSION = '2026-10-07.6';
 
   var CATEGORIES = {
     in: ['Strafe', 'Mitgliedsbeitrag', 'Getränkekasse', 'Spende', 'Anfangsbestand', 'Sonstige Einnahme'],
@@ -1341,6 +1341,9 @@
               '<div class="team">' + esc(state.team.name) + '</div>' +
               '<div class="band-sub">Offene Beträge · Saison ' + esc(currentSeason().name) +
                 ' · Stand ' + fmtDate(todayISO()) + '</div>' +
+              '<div class="band-sub2">' + rows.length +
+                (rows.length === 1 ? ' Person' : ' Personen') +
+                (wer ? ' · ' + esc(wer) : '') + '</div>' +
             '</div>' +
           '</div>' +
           '<div class="band-right">' +
@@ -1349,18 +1352,15 @@
           '</div>' +
         '</header>' +
 
-        '<p class="lead">' + rows.length + (rows.length === 1 ? ' Person' : ' Personen') +
-          (wer ? ' · ' + esc(wer) : '') +
-          ' · Bitte beim Kassenwart ausgleichen.</p>' +
-
         '<table>' +
           '<thead>' + kopf + '</thead>' +
           '<tbody>' + koerper + '</tbody>' +
           '<tfoot>' + fuss + '</tfoot>' +
         '</table>' +
 
-        '<p class="foot">' + esc(state.team.name) + ' · Mannschaftskasse · erstellt am ' +
-          fmtDate(todayISO()) + ' · Angaben ohne Gewähr, bei Unstimmigkeiten bitte melden.</p>' +
+        '<p class="foot">Bitte beim Kassenwart ausgleichen. · ' + esc(state.team.name) +
+          ' · erstellt am ' + fmtDate(todayISO()) +
+          ' · Angaben ohne Gewähr, bei Unstimmigkeiten bitte melden.</p>' +
       '</div>';
   }
 

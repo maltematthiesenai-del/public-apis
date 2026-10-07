@@ -140,21 +140,37 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
     return schlimm;});
   pruef('Keine unlesbar helle Schrift auf dem Blatt', blass.length===0, blass.join(' | '));
 
-  /* A4 im Hochformat: 210 mm minus 2 × 15 mm Rand = 180 mm Satzspiegel.
-     Nichts darf darüber hinausragen, sonst skaliert der Browser das Blatt
-     herunter oder schiebt eine leere Seite hinterher. */
-  await p.setViewportSize({width:680, height:1123});   // 180 mm bei 96 dpi
+  /* A4 hoch ist 210 mm breit, der Satzspiegel 180 mm. Die Kopfzeile läuft
+     als Briefkopf über die volle Breite, der Text darunter steht im
+     Satzspiegel — und beide fluchten an derselben Kante. */
+  await p.setViewportSize({width:794, height:1123});   // 210 mm bei 96 dpi
   await p.waitForTimeout(200);
   const masse = await p.evaluate(()=>{
     const doc=document.querySelector('.doc');
     const tab=document.querySelector('.doc table');
+    const band=document.querySelector('.doc .band');
+    const bk=getComputedStyle(band);
     return {
-      breite:doc.getBoundingClientRect().width,
-      ueberlauf:Math.max(doc.scrollWidth-doc.clientWidth, tab.scrollWidth-tab.clientWidth),
+      satzspiegel:doc.getBoundingClientRect().width,
+      kopfzeile:band.getBoundingClientRect().width,
+      kopftextLinks:band.getBoundingClientRect().left+parseFloat(bk.paddingLeft),
+      tabelleLinks:tab.getBoundingClientRect().left,
+      ueberlauf:tab.scrollWidth-tab.clientWidth,
+      ueberstand:[band.getBoundingClientRect().left-doc.getBoundingClientRect().left,
+                  band.getBoundingClientRect().right-doc.getBoundingClientRect().right],
       seitenbreite:document.documentElement.scrollWidth
     };});
-  pruef('Blatt bleibt im Satzspiegel (180 mm)', masse.breite<=680.5, masse.breite.toFixed(1)+'px');
-  pruef('Nichts läuft seitlich über', masse.ueberlauf<=1 && masse.seitenbreite<=681,
+  pruef('Satzspiegel ist 180 mm breit', Math.abs(masse.satzspiegel-680.3)<1,
+    masse.satzspiegel.toFixed(1)+'px');
+  pruef('Kopfzeile läuft über die volle Blattbreite (210 mm)',
+    Math.abs(masse.kopfzeile-793.7)<1.5, masse.kopfzeile.toFixed(1)+'px');
+  pruef('Kopfzeilentext fluchtet mit der Tabelle',
+    Math.abs(masse.kopftextLinks-masse.tabelleLinks)<1,
+    masse.kopftextLinks.toFixed(1)+' vs '+masse.tabelleLinks.toFixed(1));
+  pruef('Die Kopfzeile ragt links wie rechts um 15 mm über den Satzspiegel',
+    Math.abs(masse.ueberstand[0]+56.7)<1.5 && Math.abs(masse.ueberstand[1]-56.7)<1.5,
+    masse.ueberstand.map(x=>x.toFixed(1)).join(' / '));
+  pruef('Nichts läuft über das Blatt hinaus', masse.ueberlauf<=1 && masse.seitenbreite<=795,
     JSON.stringify(masse));
 
   /* Die App stellt html und body auf volle Höhe. Bliebe das im Druck stehen,
@@ -171,8 +187,10 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
     rahmen.tfoot==='table-row-group', rahmen.tfoot);
 
   /* Das fertige PDF nachmessen: ISO A4 hoch, 210 × 297 mm. Chrome rundet die
-     Seitengröße auf ganze Bildpunkte, daher 0,2 mm Spielraum. */
-  const pdf = await p.pdf({preferCSSPageSize:true});
+     Seitengröße auf ganze Bildpunkte, daher 0,2 mm Spielraum.
+     printBackground wie der Druckdialog mit „Hintergrundgrafiken" — ohne das
+     malt der Browser gar keine Flächen und der Test sähe nichts. */
+  const pdf = await p.pdf({preferCSSPageSize:true, printBackground:true});
   const box = pdf.toString('latin1').match(/\/MediaBox\s*\[[^\]]*\]/);
   const [bx,by] = box ? box[0].match(/[\d.]+/g).slice(2).map(n=>+n/72*25.4) : [0,0];
   pruef('PDF-Seite ist ISO A4 hoch (210 × 297 mm)',
@@ -180,6 +198,42 @@ const pruef=(n,ok,info)=>{if(!ok)fehler++;console.log((ok?'  OK    ':'  FEHLER '
     bx.toFixed(2)+' × '+by.toFixed(2)+' mm');
   const seiten = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g)||[]).length;
   pruef('Kurze Liste passt auf eine Seite', seiten===1, seiten+' Seite(n)');
+
+  /* Das Blatt muss weiß sein. Die App läuft mit „color-scheme: dark"; ohne
+     Gegenmaßnahme füllt der Browser als Allererstes das ganze Papier mit
+     seiner dunklen Grundfarbe, und man sieht einen schwarzen Rand rings um
+     den Satzspiegel. Darum: die erste große Fläche im PDF nachsehen. */
+  const zlib=require('zlib');
+  /* Alle Flächenfüllungen der ersten Seite einsammeln. Wichtig: „re" taucht
+     auch als Beschneidungsrahmen auf („re W* n"); nur was unmittelbar mit
+     „f" gefüllt wird, ist wirklich eine Farbfläche. */
+  function fuellungen(buf){
+    const txt=buf.toString('latin1'); const re=/stream\r?\n/g; let m;
+    while((m=re.exec(txt))){
+      const a=m.index+m[0].length, e=txt.indexOf('endstream', a); if(e<0) continue;
+      let inhalt; try{ inhalt=zlib.inflateSync(buf.subarray(a,e)).toString('latin1'); }
+      catch(err){ continue; }
+      if(!/\bre\b/.test(inhalt)) continue;
+      const zeilen=inhalt.split('\n').map(z=>z.trim());
+      const raus=[]; let farbe=null;
+      zeilen.forEach((z,i)=>{
+        const c=z.match(/([\d.]+) ([\d.]+) ([\d.]+) rg(?!\w)/);
+        if(c) farbe=c.slice(1).map(Number);
+        const r=z.match(/^([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) re$/);
+        if(r && farbe && /^f\*?$/.test(zeilen[i+1]||'')) raus.push({b:+r[3], h:+r[4], farbe:farbe});
+      });
+      return raus;
+    }
+    return [];
+  }
+  const flaechen=fuellungen(pdf);
+  // Was mehr als ein halbes Blatt bedeckt, muss weiß sein.
+  const grund=flaechen.filter(f=>f.b>600 && f.h>600 &&
+    (f.farbe[0]+f.farbe[1]+f.farbe[2])/3 < 0.95);
+  pruef('Blattgrund ist weiß, kein dunkles Papier darunter',
+    flaechen.length>0 && grund.length===0,
+    grund.map(f=>f.b+'x'+f.h+' rgb '+f.farbe.join(',')).join(' | ') ||
+    flaechen.length+' Flächen geprüft');
 
   if (process.env.SP) {
     require('fs').writeFileSync(process.env.SP+'/offene-betraege.pdf', pdf);
