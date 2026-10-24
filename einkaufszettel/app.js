@@ -10,7 +10,7 @@ import {
 } from './core.js';
 
 // Shown under Einstellungen → App; bump together with CACHE in sw.js.
-const APP_VERSION = '2026-10-24.1';
+const APP_VERSION = '2026-10-24.2';
 const OFFER_MODEL = 'claude-opus-5-5';
 const PERSON_COLORS = ['#0B7A5C', '#B5527A', '#3D6FD8', '#C26A1B', '#7A55C7', '#1F8A9E'];
 
