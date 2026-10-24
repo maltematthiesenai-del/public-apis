@@ -1,0 +1,1397 @@
+<title>Einkaufszettel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one thumb-friendly column (max 640px) — sticky header with the
+   market lists, the shopping list grouped by aisle, a fixed tab bar below. */
+:root {
+  --bg: #F2F4EF;
+  --surface: #FFFFFF;
+  --surface-2: #E7EBE4;
+  --fg: #17211B;
+  --muted: #5B6A61;
+  --line: #D6DDD5;
+  --accent: #0B7A5C;
+  --accent-fg: #FFFFFF;
+  --accent-soft: #D7EEE5;
+  --tag: #FFD84D;
+  --tag-fg: #2B2200;
+  --danger: #B9342A;
+  --ok: #1E9455;
+  --warn: #B87C00;
+  --lidl: #0A4FA6;
+  --aldi: #0090D0;
+  --rewe: #C8102E;
+  --other: #77807A;
+  --shadow: 0 1px 2px rgba(20, 40, 30, .06), 0 6px 20px rgba(20, 40, 30, .06);
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1512; --surface: #18201C; --surface-2: #222C27; --fg: #E5ECE7; --muted: #94A49B;
+    --line: #2D3832; --accent: #43C996; --accent-fg: #062A1D; --accent-soft: #173A2E;
+    --tag: #F6CF45; --tag-fg: #261E00; --danger: #FF7468; --ok: #4BD08A; --warn: #F2B53C;
+    --lidl: #6EA6FF; --aldi: #4CC3F5; --rewe: #FF6B7C; --other: #9AA39D;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1512; --surface: #18201C; --surface-2: #222C27; --fg: #E5ECE7; --muted: #94A49B;
+  --line: #2D3832; --accent: #43C996; --accent-fg: #062A1D; --accent-soft: #173A2E;
+  --tag: #F6CF45; --tag-fg: #261E00; --danger: #FF7468; --ok: #4BD08A; --warn: #F2B53C;
+  --lidl: #6EA6FF; --aldi: #4CC3F5; --rewe: #FF6B7C; --other: #9AA39D;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+/* The app's own setting (Einstellungen → Darstellung) wins over the viewer's theme. */
+html:root[data-app-theme="light"] {
+  --bg: #F2F4EF; --surface: #FFFFFF; --surface-2: #E7EBE4; --fg: #17211B; --muted: #5B6A61;
+  --line: #D6DDD5; --accent: #0B7A5C; --accent-fg: #FFFFFF; --accent-soft: #D7EEE5;
+  --tag: #FFD84D; --tag-fg: #2B2200; --danger: #B9342A; --ok: #1E9455; --warn: #B87C00;
+  --lidl: #0A4FA6; --aldi: #0090D0; --rewe: #C8102E; --other: #77807A;
+  --shadow: 0 1px 2px rgba(20, 40, 30, .06), 0 6px 20px rgba(20, 40, 30, .06);
+  color-scheme: light;
+}
+html:root[data-app-theme="dark"] {
+  --bg: #0F1512; --surface: #18201C; --surface-2: #222C27; --fg: #E5ECE7; --muted: #94A49B;
+  --line: #2D3832; --accent: #43C996; --accent-fg: #062A1D; --accent-soft: #173A2E;
+  --tag: #F6CF45; --tag-fg: #261E00; --danger: #FF7468; --ok: #4BD08A; --warn: #F2B53C;
+  --lidl: #6EA6FF; --aldi: #4CC3F5; --rewe: #FF6B7C; --other: #9AA39D;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 20px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--bg);
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap {
+  max-width: 640px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* Header */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.top .wrap { padding-block: 12px 10px; display: grid; gap: 10px; }
+.brandrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 { font-size: 26px; font-weight: 800; white-space: nowrap; }
+.sync {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+  padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); white-space: nowrap;
+}
+.sync i { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.sync[data-state="live"] i { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.sync[data-state="off"] i { background: var(--danger); }
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-inline: -4px; padding: 2px 4px; }
+.chips::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 15px;
+}
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--m, var(--other)); }
+.chip .count { font-size: 13px; color: var(--muted); font-weight: 600; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip[aria-pressed="true"] .count { color: inherit; opacity: .75; }
+.chip.ghost { border-style: dashed; color: var(--muted); background: transparent; }
+
+main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+main .wrap { padding-block: 14px 24px; display: grid; gap: 16px; }
+
+/* Add bar */
+.addbar { position: relative; }
+.addform { display: flex; gap: 8px; }
+.addform input {
+  flex: 1; min-width: 0; height: 52px; padding: 0 16px; border-radius: var(--radius);
+  border: 1.5px solid var(--line); background: var(--surface); font-size: 17px; box-shadow: var(--shadow);
+}
+.addform input:focus { border-color: var(--accent); outline: none; }
+.btn-add {
+  flex: none; width: 52px; height: 52px; border-radius: var(--radius); border: 0;
+  background: var(--accent); color: var(--accent-fg); font-size: 28px; font-weight: 500; line-height: 1;
+}
+.suggest {
+  position: absolute; left: 0; right: 60px; top: 58px; z-index: 4; list-style: none; margin: 0; padding: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.suggest button {
+  width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 10px; align-items: center;
+  border: 0; background: transparent; padding: 10px 12px; border-radius: 10px; font-size: 16px;
+}
+.suggest button:hover, .suggest button:focus-visible { background: var(--surface-2); }
+.suggest small { color: var(--muted); font-size: 13px; }
+
+.banner {
+  border-radius: var(--radius); padding: 12px 14px; font-size: 14px; background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.banner.warn { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+.hint-offers {
+  display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600;
+  padding: 10px 14px; border-radius: var(--radius); background: color-mix(in srgb, var(--tag) 30%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--tag) 70%, var(--line)); color: var(--fg);
+}
+
+/* Items */
+.group { display: grid; gap: 6px; }
+.group h3 { font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 4px; display: flex; justify-content: space-between; align-items: center; }
+.items { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.item { display: flex; align-items: stretch; min-height: 58px; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; }
+.check {
+  flex: none; width: 56px; border: 0; background: transparent; display: grid; place-items: center;
+}
+.check span {
+  width: 26px; height: 26px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--muted) 70%, transparent);
+  display: grid; place-items: center; transition: background .15s, border-color .15s, transform .15s;
+}
+.check svg { width: 14px; height: 14px; opacity: 0; }
+.item.done .check span { background: var(--accent); border-color: var(--accent); }
+.item.done .check svg { opacity: 1; color: var(--accent-fg); }
+.check:active span { transform: scale(.9); }
+.ibody {
+  flex: 1; min-width: 0; border: 0; background: transparent; text-align: left; padding: 9px 4px 9px 0;
+  display: grid; gap: 3px; align-content: center;
+}
+.line1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.iname { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.qty { flex: none; font-size: 14px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.imeta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+.item.done .iname { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--muted); }
+.item.done .qty { color: var(--muted); }
+.who { flex: none; align-self: center; width: 26px; height: 26px; border-radius: 50%; margin-right: 12px; object-fit: cover; background: var(--surface-2); }
+
+/* Price tag — the yellow sign from the supermarket shelf */
+.tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; border-radius: 6px;
+  background: var(--tag); color: var(--tag-fg); font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 6px 100%, 0 50%);
+  padding-left: 12px;
+}
+.tag.later { background: color-mix(in srgb, var(--tag) 45%, var(--surface)); }
+.mk { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.mk::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--m, var(--other)); }
+
+.linkbtn { border: 0; background: transparent; color: var(--accent); font-weight: 700; font-size: 13px; padding: 6px 4px; letter-spacing: 0; text-transform: none; }
+.linkbtn.danger { color: var(--danger); }
+
+.empty {
+  text-align: center; padding: 36px 20px; border: 1.5px dashed var(--line); border-radius: var(--radius); display: grid; gap: 10px; justify-items: center;
+}
+.empty h2 { font-size: 22px; }
+.empty p { margin: 0; color: var(--muted); max-width: 34ch; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+/* Buttons */
+.btn {
+  min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+  font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.danger { color: var(--danger); }
+.btn.danger.armed { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* Tab bar */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.tabbar .wrap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding-block: 6px; }
+.tab {
+  border: 0; background: transparent; display: grid; justify-items: center; gap: 2px; padding: 6px 0; border-radius: 12px;
+  font-size: 12px; font-weight: 600; color: var(--muted); position: relative;
+}
+.tab svg { width: 24px; height: 24px; }
+.tab[aria-current="page"] { color: var(--accent); }
+.tab .badge {
+  position: absolute; top: 2px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--tag); color: var(--tag-fg); font-size: 11px; font-weight: 800; display: grid; place-items: center;
+}
+
+/* Offers */
+.seg { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.search {
+  width: 100%; height: 46px; padding: 0 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); font-size: 16px;
+}
+.search:focus { outline: none; border-color: var(--accent); }
+.offers { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.offer {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center;
+  padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.offer.match { border-color: color-mix(in srgb, var(--tag) 80%, var(--line)); box-shadow: inset 4px 0 0 var(--tag); }
+.otitle { font-weight: 700; font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
+.osub { grid-column: 1; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.oprice { grid-row: 1 / span 2; grid-column: 2; display: grid; justify-items: end; gap: 4px; }
+.oprice strong { font-family: var(--font-display); font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.oprice s { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.disc { font-size: 12px; font-weight: 800; color: var(--danger); }
+.oadd { grid-column: 1 / -1; justify-self: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.panel > summary { list-style: none; padding: 14px 16px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.panel > summary::-webkit-details-marker { display: none; }
+.panel > summary::after { content: "+"; font-size: 22px; color: var(--muted); line-height: 1; }
+.panel[open] > summary::after { content: "–"; }
+.panel .inner { padding: 0 16px 16px; display: grid; gap: 12px; }
+.field { display: grid; gap: 6px; }
+.field label, .lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
+.field input, .field select, .field textarea {
+  width: 100%; min-height: 46px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--bg); font-size: 16px;
+}
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: var(--accent); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
+.status { font-size: 14px; color: var(--muted); }
+.status.err { color: var(--danger); }
+.preview { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
+.preview label { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--bg); font-size: 14px; }
+.preview input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; }
+.preview span { flex: 1; min-width: 0; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; }
+.links a { color: var(--accent); font-weight: 600; font-size: 14px; }
+
+/* Settings */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 14px; }
+.card h2 { font-size: 19px; }
+.segctl { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface-2); padding: 4px; border-radius: 12px; gap: 4px; }
+.segctl button { border: 0; background: transparent; min-height: 40px; border-radius: 9px; font-weight: 600; font-size: 15px; }
+.segctl button[aria-pressed="true"] { background: var(--surface); box-shadow: var(--shadow); }
+.me { display: flex; gap: 12px; align-items: center; }
+.me img { width: 44px; height: 44px; border-radius: 50%; }
+.lists-edit { display: grid; gap: 12px; }
+.lrow { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; background: var(--bg); }
+.lrow .grid2 { grid-template-columns: 1.4fr 1fr; }
+.order { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.order li { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 10px; border-radius: 10px; background: var(--surface); font-size: 14px; }
+.order li span { flex: 1; }
+.order button { width: 36px; height: 36px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); font-size: 16px; }
+.order button:disabled { opacity: .3; }
+
+/* Sheet */
+.backdrop { position: fixed; inset: 0; background: rgba(8, 14, 11, .45); z-index: 20; }
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 92%; overflow: auto;
+  background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, .2);
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+.sheet .wrap { padding-block: 10px 4px; display: grid; gap: 14px; }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto; }
+.sheet h2 { font-size: 22px; }
+.sheet .actions { display: flex; gap: 10px; justify-content: space-between; }
+.sheet .actions .btn.primary { flex: 1; }
+.audit { font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.audit div { display: flex; gap: 8px; align-items: center; }
+.audit img { width: 20px; height: 20px; border-radius: 50%; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  z-index: 30; background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 600;
+  max-width: calc(100% - 32px); box-shadow: var(--shadow); text-align: center;
+}
+.gate { min-height: 60vh; display: grid; place-items: center; }
+.gate .empty { max-width: 420px; }
+
+@media (max-width: 380px) {
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .grid3 > :first-child { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brandrow">
+      <div class="brand"><h1>Einkaufszettel</h1></div>
+      <span class="sync" id="sync" data-state="wait" role="status"><i></i><span>Verbinde …</span></span>
+    </div>
+    <div class="chips" id="listChips" role="toolbar" aria-label="Listen"></div>
+  </div>
+</header>
+
+<main>
+  <section id="view-list" class="wrap" aria-label="Liste">
+    <div id="roBanner" class="banner warn" hidden>Du kannst die Liste nur ansehen. Bitte die Person, die den Einkaufszettel geteilt hat, dich als <b>Bearbeiter</b> einzuladen.</div>
+    <div id="offlineBanner" class="banner warn" hidden>Keine Verbindung. Änderungen werden erst gespeichert, wenn du wieder online bist.</div>
+    <div class="addbar">
+      <form class="addform" id="addForm" autocomplete="off">
+        <input id="addInput" type="text" enterkeyhint="done" placeholder="Artikel hinzufügen, z. B. 2 kg Äpfel" aria-label="Artikel hinzufügen">
+        <button class="btn-add" type="submit" aria-label="Hinzufügen">+</button>
+      </form>
+      <ul class="suggest" id="suggest" hidden></ul>
+    </div>
+    <div id="listBody"></div>
+  </section>
+
+  <section id="view-offers" class="wrap" aria-label="Angebote" hidden>
+    <div style="display:grid;gap:4px">
+      <h2 style="font-size:26px">Angebote</h2>
+      <div class="status" id="offersMeta"></div>
+    </div>
+    <div class="seg" id="offerFilter" role="toolbar" aria-label="Markt"></div>
+    <input class="search" id="offerSearch" type="search" placeholder="Angebote durchsuchen" aria-label="Angebote durchsuchen">
+    <div id="offersBody"></div>
+
+    <details class="panel" id="importPanel">
+      <summary>Angebote eintragen</summary>
+      <div class="inner">
+        <p class="muted" style="margin:0;font-size:14px">Mach Screenshots oder Fotos vom aktuellen Prospekt (App oder Website des Markts). Claude liest die Angebote aus, du prüfst sie und übernimmst sie für beide Geräte.</p>
+        <div class="links" id="flyerLinks"></div>
+        <div class="grid2">
+          <div class="field"><label for="flyerMarket">Markt</label><select id="flyerMarket"></select></div>
+          <div class="field"><label for="flyerFiles">Prospekt-Bilder</label><input id="flyerFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple></div>
+        </div>
+        <button class="btn primary" id="flyerRead" type="button">Angebote auslesen</button>
+        <div class="status" id="flyerStatus" role="status"></div>
+        <div id="flyerPreview"></div>
+
+        <div class="eyebrow" style="margin-top:6px">Oder von Hand</div>
+        <form id="manualForm" class="inner" style="padding:0" autocomplete="off">
+          <div class="field"><label for="mTitle">Produkt</label><input id="mTitle" required placeholder="z. B. Frische Vollmilch 1 l"></div>
+          <div class="grid3">
+            <div class="field"><label for="mMarket">Markt</label><select id="mMarket"></select></div>
+            <div class="field"><label for="mPrice">Preis €</label><input id="mPrice" inputmode="decimal" required placeholder="0,99"></div>
+            <div class="field"><label for="mOld">Statt €</label><input id="mOld" inputmode="decimal" placeholder="1,29"></div>
+          </div>
+          <div class="field"><label for="mTo">Gültig bis</label><input id="mTo" type="date"></div>
+          <button class="btn" type="submit">Angebot speichern</button>
+        </form>
+      </div>
+    </details>
+  </section>
+
+  <section id="view-settings" class="wrap" aria-label="Einstellungen" hidden>
+    <h2 style="font-size:26px">Einstellungen</h2>
+    <div class="card">
+      <h2>Darstellung</h2>
+      <div class="segctl" id="themeCtl" role="group" aria-label="Darstellung">
+        <button type="button" data-theme-set="system">System</button>
+        <button type="button" data-theme-set="light">Hell</button>
+        <button type="button" data-theme-set="dark">Dunkel</button>
+      </div>
+    </div>
+    <div id="settingsBody" style="display:grid;gap:16px"></div>
+  </section>
+
+  <section id="view-gate" class="wrap gate" hidden></section>
+</main>
+
+<nav class="tabbar" aria-label="Bereiche">
+  <div class="wrap">
+    <button class="tab" data-view="list" aria-current="page" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/></svg>
+      Liste
+    </button>
+    <button class="tab" data-view="offers" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+      Angebote
+      <span class="badge" id="offerBadge" hidden></span>
+    </button>
+    <button class="tab" data-view="settings" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      Einstellungen
+    </button>
+  </div>
+</nav>
+
+<div class="backdrop" id="backdrop" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <div class="wrap">
+    <div class="grab"></div>
+    <h2 id="sheetTitle">Artikel</h2>
+    <div class="field"><label for="eName">Name</label><input id="eName" type="text"></div>
+    <div class="grid2">
+      <div class="field"><label for="eQty">Menge</label><input id="eQty" inputmode="decimal" placeholder="–"></div>
+      <div class="field"><label for="eUnit">Einheit</label><select id="eUnit"></select></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="eCat">Gang</label><select id="eCat"></select></div>
+      <div class="field"><label for="eList">Liste</label><select id="eList"></select></div>
+    </div>
+    <div class="field"><label for="eNote">Notiz</label><input id="eNote" type="text" placeholder="z. B. die Bio-Variante"></div>
+    <div id="eOffers"></div>
+    <div class="audit" id="eAudit"></div>
+    <div class="actions">
+      <button class="btn danger" id="eDelete" type="button">Löschen</button>
+      <button class="btn" id="eCancel" type="button">Abbrechen</button>
+      <button class="btn primary" id="eSave" type="button">Speichern</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- Constants ---------- */
+
+  var MARKETS = {
+    lidl: { name: 'Lidl', color: 'var(--lidl)', url: 'https://www.lidl.de/' },
+    aldi: { name: 'Aldi Nord', color: 'var(--aldi)', url: 'https://www.aldi-nord.de/angebote.html' },
+    rewe: { name: 'Rewe', color: 'var(--rewe)', url: 'https://www.rewe.de/angebote/' },
+    none: { name: 'Anderer Markt', color: 'var(--other)', url: '' }
+  };
+  var OFFER_MARKETS = ['lidl', 'aldi', 'rewe'];
+
+  // Keywords are folded (ä→a, ß→ss). German compounds put the head noun last,
+  // so a keyword matches when a word ends with it ("Vollmilch" → milch).
+  // A leading "=" means the word must match exactly (short words like "Eis").
+  var CATS = [
+    { id: 'obst', name: 'Obst & Gemüse', k: ['obst', 'gemuse', 'apfel', 'birne', 'banane', 'orange', 'mandarine', 'clementine', 'zitrone', 'limette', 'traube', 'beere', 'kiwi', 'mango', 'ananas', 'melone', 'pfirsich', 'nektarine', 'pflaume', 'avocado', 'tomate', 'gurke', 'paprika', 'salat', 'zwiebel', 'knoblauch', 'kartoffel', 'mohre', 'karotte', 'brokkoli', 'blumenkohl', 'zucchini', 'aubergine', 'pilz', 'champignon', 'spinat', 'lauch', 'porree', 'sellerie', 'radieschen', 'kohl', 'kurbis', 'ingwer', 'petersilie', 'schnittlauch', 'basilikum', 'rucola', 'spargel', 'bete', 'feldsalat', 'kraut', 'minze', 'dill', 'fenchel'] },
+    { id: 'brot', name: 'Brot & Backwaren', k: ['brot', 'brotchen', 'toast', 'baguette', 'croissant', 'brezel', 'laugenstange', 'kuchen', 'wrap', 'tortilla', 'zwieback', 'semmel', 'ciabatta', 'bagel', 'muffin'] },
+    { id: 'kuehl', name: 'Kühlregal', k: ['milch', 'joghurt', 'jogurt', 'quark', 'butter', 'kase', 'sahne', 'schmand', 'fraiche', 'mozzarella', 'feta', 'gouda', 'parmesan', '=ei', '=eier', 'margarine', 'skyr', 'kefir', 'pudding', 'tofu', 'hummus', 'gnocchi', 'tortellini', 'teig', 'aufstrich'] },
+    { id: 'fleisch', name: 'Fleisch & Fisch', k: ['fleisch', 'hack', 'hahnchen', 'pute', 'putenbrust', 'rind', 'schwein', 'schnitzel', 'wurst', 'salami', 'schinken', 'bacon', 'speck', 'lachs', 'fisch', 'garnele', 'wurstchen', 'aufschnitt', 'filet', 'steak', 'gulasch', 'kassler', 'frikadelle', 'geflugel', 'hahnchenbrust', 'chicken', 'mett'] },
+    { id: 'tk', name: 'Tiefkühl', k: ['tiefkuhl', '=tk', 'pizza', '=eis', 'eiscreme', 'pommes', 'fischstabchen', 'kroketten', 'rahmspinat', 'erbsen', 'beeren-mix'] },
+    { id: 'vorrat', name: 'Vorrat & Konserven', k: ['nudel', 'spaghetti', 'penne', 'fusilli', 'lasagne', 'reis', 'mehl', 'zucker', 'salz', 'pfeffer', 'gewurz', '=ol', 'olivenol', 'rapsol', 'sonnenblumenol', 'speiseol', 'essig', 'ketchup', 'senf', 'mayo', 'mayonnaise', 'bruhe', 'dose', 'konserve', 'bohne', 'linse', 'kichererbse', 'tomatenmark', 'passata', 'haferflocken', 'musli', 'cornflakes', 'honig', 'marmelade', 'konfiture', 'nutella', 'kaffee', 'tee', 'kakao', 'backpulver', 'hefe', 'sosse', 'sauce', 'pesto', 'couscous', 'bulgur', 'thunfisch', 'mais', 'knackebrot', 'muesli', 'brotaufstrich', 'vanillezucker'] },
+    { id: 'suess', name: 'Süßes & Snacks', k: ['schokolade', 'chips', 'keks', 'gummibar', 'bonbon', 'riegel', 'nusse', 'nuss', 'salzstange', 'popcorn', 'cracker', 'praline', 'snack', 'waffel', 'lakritz', 'fruchtgummi', 'schoko'] },
+    { id: 'getraenke', name: 'Getränke', k: ['wasser', 'cola', 'limo', 'limonade', 'bier', 'wein', 'sekt', 'schorle', 'sprudel', 'eistee', 'energy', 'smoothie', 'radler', 'spezi', 'fanta', 'sprite', 'saft', 'getrank'] },
+    { id: 'drogerie', name: 'Drogerie & Haushalt', k: ['shampoo', 'duschgel', 'seife', 'zahnpasta', 'zahncreme', 'zahnburste', 'deo', 'toilettenpapier', 'klopapier', 'kuchenrolle', 'taschentucher', 'spulmittel', 'waschmittel', 'mullbeutel', 'schwamm', 'putzmittel', 'reiniger', 'windel', 'creme', 'rasierer', 'watte', 'spultabs', 'tabs', 'alufolie', 'frischhaltefolie', 'backpapier', 'batterie', 'weichspuler', 'futter', 'katzenstreu', 'pflaster', 'tampon', 'binde', 'kerze'] },
+    { id: 'sonst', name: 'Sonstiges', k: [] }
+  ];
+  var CAT_BY_ID = {};
+  CATS.forEach(function (c) { CAT_BY_ID[c.id] = c; });
+  var DEFAULT_ORDER = CATS.map(function (c) { return c.id; });
+  var UNITS = ['', 'Stk', 'g', 'kg', 'ml', 'l', 'Pkg', 'Dose', 'Fl', 'Bund', 'Becher', 'Glas', 'Netz'];
+  var STOP = { bio: 1, und: 1, mit: 1, fur: 1, frisch: 1, frische: 1, frischer: 1, frisches: 1, oder: 1, von: 1, der: 1, die: 1, das: 1, ohne: 1, extra: 1, mini: 1, gross: 1, klein: 1, natur: 1, original: 1, classic: 1, stuck: 1, packung: 1, pack: 1, versch: 1, sorten: 1, verschiedene: 1, sorte: 1, deutsche: 1, deutscher: 1, aus: 1, ca: 1, je: 1, xxl: 1, family: 1, angebot: 1 };
+
+  var euro = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+  var numFmt = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
+  var dayFmt = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  var rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' });
+
+  /* ---------- State ---------- */
+
+  var S = {
+    db: null, user: null, sample: null, meId: null,
+    canWrite: true, live: false, loaded: false,
+    lists: [], items: [], history: [], offers: [], offersMeta: null,
+    histMap: new Map(), profiles: {},
+    listId: null, view: 'list', offerFilter: 'match',
+    editing: null, importPreview: null
+  };
+
+  /* ---------- Helpers ---------- */
+
+  function $(s) { return document.querySelector(s); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fold(s) {
+    return String(s || '').toLowerCase()
+      .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss')
+      .replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function stem(w) {
+    if (w.length >= 6 && w.slice(-2) === 'en') return w.slice(0, -2);
+    if (w.length >= 5 && /[ens]$/.test(w)) return w.slice(0, -1);
+    return w;
+  }
+  // Does `word` have `kw` as its head (last part of the compound)?
+  function headMatch(word, kw) {
+    if (kw.charAt(0) === '=') return word === kw.slice(1);
+    if (kw.length < 4) return word === kw;
+    var sw = stem(word), sk = stem(kw);
+    return word.slice(-kw.length) === kw || sw.slice(-sk.length) === sk || sw.slice(-kw.length) === kw;
+  }
+  function words(s) {
+    return fold(s).split(' ').filter(function (t) { return /^[a-z]{3,}$/.test(t) && !STOP[t]; });
+  }
+  function slug(s) { return fold(s).replace(/ /g, '-').slice(0, 120); }
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function addDays(iso, n) {
+    var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function fmtDay(iso) { try { return dayFmt.format(new Date(iso + 'T12:00:00')); } catch (e) { return iso; } }
+  function ago(ts) {
+    if (!ts) return '';
+    var s = Math.round((ts - Date.now()) / 1000), a = Math.abs(s);
+    if (a < 60) return 'gerade eben';
+    if (a < 3600) return rtf.format(Math.round(s / 60), 'minute');
+    if (a < 86400) return rtf.format(Math.round(s / 3600), 'hour');
+    return rtf.format(Math.round(s / 86400), 'day');
+  }
+  function parseNum(v) {
+    if (v == null || v === '') return null;
+    var n = parseFloat(String(v).replace(',', '.'));
+    return isFinite(n) ? n : null;
+  }
+  function fmtQty(q, u) {
+    if (q == null || q === '') return u ? u : '';
+    return u ? numFmt.format(q) + ' ' + u : numFmt.format(q) + '×';
+  }
+  function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function mk(m) { return MARKETS[m] || MARKETS.none; }
+
+  var UNIT_MAP = { x: '', '×': '', stk: 'Stk', 'stück': 'Stk', stueck: 'Stk', g: 'g', gr: 'g', kg: 'kg', ml: 'ml', l: 'l', liter: 'l', pkg: 'Pkg', pck: 'Pkg', packung: 'Pkg', packungen: 'Pkg', pack: 'Pkg', dose: 'Dose', dosen: 'Dose', fl: 'Fl', flasche: 'Fl', flaschen: 'Fl', bund: 'Bund', becher: 'Becher', glas: 'Glas', 'gläser': 'Glas', netz: 'Netz' };
+  var UNIT_RE = '(x|×|stk|stück|stueck|gr|g|kg|ml|liter|l|pkg|pck|packungen|packung|pack|dosen|dose|flaschen|flasche|fl|bund|becher|gläser|glas|netz)';
+  // "2 kg Äpfel", "3x Joghurt", "Milch 2", "Hack 500 g"
+  function parseEntry(raw) {
+    var s = String(raw || '').trim().replace(/\s+/g, ' ');
+    var qty = null, unit = '', m;
+    m = s.match(new RegExp('^(\\d+(?:[.,]\\d+)?)\\s*' + UNIT_RE + '?\\.?\\s+(.+)$', 'i'));
+    if (m) { qty = parseNum(m[1]); unit = m[2] ? UNIT_MAP[m[2].toLowerCase()] : ''; s = m[3]; }
+    else {
+      m = s.match(new RegExp('^(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s*' + UNIT_RE + '?\\.?$', 'i'));
+      if (m) { s = m[1]; qty = parseNum(m[2]); unit = m[3] ? UNIT_MAP[m[3].toLowerCase()] : ''; }
+    }
+    return { name: cap(s.trim()), qty: qty, unit: unit || '' };
+  }
+  function guessCat(name) {
+    var ws = fold(name).split(' ').filter(Boolean).reverse();
+    for (var i = 0; i < ws.length; i++) {
+      var best = null, bl = 0;
+      for (var c = 0; c < CATS.length; c++) {
+        var ks = CATS[c].k;
+        for (var j = 0; j < ks.length; j++) {
+          if (ks[j].length > bl && headMatch(ws[i], ks[j])) { best = CATS[c].id; bl = ks[j].length; }
+        }
+      }
+      if (best) return best;
+    }
+    return 'sonst';
+  }
+
+  /* ---------- Offers matching ---------- */
+
+  function offerState(o) {
+    var t = today();
+    if (o.validTo && o.validTo < t) return 'expired';
+    if (o.validFrom && o.validFrom > t) return o.validFrom <= addDays(t, 7) ? 'soon' : 'expired';
+    return 'now';
+  }
+  function prepOffer(o) {
+    var ws = words(o.title);
+    (o.keywords || []).forEach(function (k) { words(k).forEach(function (w) { ws.push(w); }); });
+    o._w = ws;
+    o._state = offerState(o);
+    return o;
+  }
+  function itemMatches(item, o) {
+    var t = words(item.name);
+    if (!t.length || !o._w.length) return false;
+    var head = t[t.length - 1];
+    var whole = t.join('');
+    return o._w.some(function (w) {
+      return headMatch(w, head) || headMatch(whole, w) || (w.length >= 4 && headMatch(head, w));
+    });
+  }
+  function offersFor(item) {
+    var r = S.offers.filter(function (o) { return o._state !== 'expired' && itemMatches(item, o); });
+    r.sort(function (a, b) { return (a._state === 'now' ? 0 : 1) - (b._state === 'now' ? 0 : 1) || a.price - b.price; });
+    return r;
+  }
+  function activeOffers() { return S.offers.filter(function (o) { return o._state !== 'expired'; }); }
+
+  /* ---------- Theme ---------- */
+
+  function loadTheme() { try { return localStorage.getItem('ez-theme') || 'system'; } catch (e) { return 'system'; } }
+  function applyTheme(t) {
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-app-theme', t);
+    else document.documentElement.removeAttribute('data-app-theme');
+    document.querySelectorAll('[data-theme-set]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-theme-set') === t));
+    });
+  }
+  function setTheme(t) {
+    applyTheme(t);
+    try { localStorage.setItem('ez-theme', t); } catch (e) { }
+    if (S.db && S.meId) S.db.doc('data/users/' + S.meId + '/prefs').set({ theme: t }).catch(function () { });
+  }
+
+  /* ---------- Toast & writes ---------- */
+
+  var toastTimer;
+  function toast(msg) {
+    var el = $('#toast');
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+  }
+  function handleErr(e) {
+    var c = e && e.code;
+    console.warn(e);
+    if (c === 'invalid_argument') { toast('Nicht gespeichert: Dir fehlt die Berechtigung zum Bearbeiten.'); }
+    else if (c === 'quota_exceeded') toast('Speicher voll. Entferne erledigte Artikel oder alte Angebote.');
+    else if (c === 'resource_exhausted') toast('Zu viele Änderungen auf einmal. Bitte kurz warten.');
+    else toast('Nicht gespeichert. Bitte Verbindung prüfen und nochmal versuchen.');
+  }
+  function write(fn) {
+    if (!S.db) { toast('Keine Verbindung zum Speicher.'); return Promise.resolve(false); }
+    return Promise.resolve().then(fn).then(function () { return true; }, function (e) { handleErr(e); return false; });
+  }
+  function arm(btn, label, fn) {
+    if (btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.textContent = btn.dataset.label; fn(); return; }
+    btn.dataset.label = btn.textContent;
+    btn.classList.add('armed'); btn.textContent = label;
+    setTimeout(function () { if (btn.classList.contains('armed')) { btn.classList.remove('armed'); btn.textContent = btn.dataset.label; } }, 3500);
+  }
+
+  /* ---------- Data actions ---------- */
+
+  function currentList() {
+    return S.lists.find(function (l) { return l.id === S.listId; }) || S.lists[0] || null;
+  }
+  function histId(key) { return slug(key).slice(0, 150); }
+
+  function learn(name, unit, category, bump) {
+    var key = fold(name);
+    if (!key) return;
+    var h = S.histMap.get(key);
+    var data = { name: name, unit: unit || '', category: category, count: (h ? h.count || 0 : 0) + (bump ? 1 : 0), lastUsed: Date.now() };
+    write(function () { return S.db.doc('history/' + histId(key)).set(data); });
+  }
+
+  function addItem(raw, extra) {
+    extra = extra || {};
+    var p = parseEntry(raw);
+    if (!p.name) return;
+    var list = extra.list || currentList();
+    if (!list) { toast('Lege zuerst eine Liste an.'); return; }
+    var key = fold(p.name);
+    var dup = S.items.find(function (i) { return i.listId === list.id && fold(i.name) === key; });
+    if (dup && !dup.done) {
+      if (p.qty != null) write(function () { return S.db.doc('items/' + dup.id).update({ qty: p.qty, unit: p.unit || dup.unit || '', updatedAt: Date.now() }); });
+      toast(dup.name + ' steht schon auf der Liste.');
+      return;
+    }
+    if (dup && dup.done) {
+      write(function () { return S.db.doc('items/' + dup.id).update({ done: false, doneBy: null, doneAt: null, qty: p.qty != null ? p.qty : dup.qty, unit: p.unit || dup.unit || '', updatedAt: Date.now() }); });
+      toast(dup.name + ' ist wieder auf der Liste.');
+      return;
+    }
+    var h = S.histMap.get(key);
+    var now = Date.now();
+    var doc = {
+      listId: list.id, name: p.name, qty: p.qty,
+      unit: p.unit || (p.qty != null && h ? h.unit || '' : ''),
+      category: extra.category || (h && h.category) || guessCat(p.name),
+      note: extra.note || '', done: false,
+      addedBy: S.meId, doneBy: null, doneAt: null, createdAt: now, updatedAt: now
+    };
+    write(function () { return S.db.collection('items').add(doc); }).then(function (ok) {
+      if (ok) {
+        learn(p.name, doc.unit, doc.category, true);
+        if (extra.list) toast(p.name + ' steht jetzt auf ' + extra.list.name + '.');
+      }
+    });
+  }
+
+  function toggleItem(id) {
+    var it = S.items.find(function (i) { return i.id === id; });
+    if (!it) return;
+    var done = !it.done;
+    write(function () { return S.db.doc('items/' + id).update({ done: done, doneBy: done ? S.meId : null, doneAt: done ? Date.now() : null, updatedAt: Date.now() }); });
+  }
+
+  function clearDone(listId) {
+    var done = S.items.filter(function (i) { return i.listId === listId && i.done; });
+    var chain = Promise.resolve();
+    done.forEach(function (i) { chain = chain.then(function () { return S.db.doc('items/' + i.id).delete(); }); });
+    write(function () { return chain; }).then(function (ok) { if (ok) toast(done.length + ' erledigte Artikel entfernt.'); });
+  }
+
+  function createList(name, market) {
+    var order = S.lists.reduce(function (m, l) { return Math.max(m, l.order || 0); }, 0) + 1;
+    var ref = S.db.collection('lists').doc();
+    S.listId = ref.id;
+    return write(function () { return ref.set({ name: name, market: market, order: order, catOrder: DEFAULT_ORDER.slice(), createdAt: Date.now(), createdBy: S.meId }); });
+  }
+
+  function deleteList(list) {
+    var items = S.items.filter(function (i) { return i.listId === list.id; });
+    var chain = Promise.resolve();
+    items.forEach(function (i) { chain = chain.then(function () { return S.db.doc('items/' + i.id).delete(); }); });
+    chain = chain.then(function () { return S.db.doc('lists/' + list.id).delete(); });
+    write(function () { return chain; }).then(function (ok) { if (ok) toast('Liste „' + list.name + '“ gelöscht.'); });
+  }
+
+  /* ---------- Rendering: header ---------- */
+
+  function renderSync() {
+    var el = $('#sync'), st, txt;
+    if (!navigator.onLine) { st = 'off'; txt = 'Offline'; }
+    else if (S.live) { st = 'live'; txt = 'Live synchron'; }
+    else { st = 'wait'; txt = 'Verbinde …'; }
+    el.setAttribute('data-state', st);
+    el.lastElementChild.textContent = txt;
+    $('#offlineBanner').hidden = navigator.onLine;
+  }
+
+  function renderChips() {
+    var cur = currentList();
+    var html = S.lists.map(function (l) {
+      var open = S.items.filter(function (i) { return i.listId === l.id && !i.done; }).length;
+      return '<button type="button" class="chip" data-list="' + esc(l.id) + '" aria-pressed="' + (cur && cur.id === l.id) + '" style="--m:' + mk(l.market).color + '">' +
+        '<span class="dot"></span>' + esc(l.name) + (open ? ' <span class="count num">' + open + '</span>' : '') + '</button>';
+    }).join('');
+    if (S.loaded && S.canWrite) html += '<button type="button" class="chip ghost" data-act="new-list">+ Liste</button>';
+    $('#listChips').innerHTML = html;
+  }
+
+  /* ---------- Rendering: list ---------- */
+
+  function whoImg(id) {
+    if (!id) return '';
+    var p = S.profiles[id];
+    if (!p) return '';
+    return '<img class="who" alt="" title="' + esc(p.name || 'Jemand') + '" src="' + esc(p.avatarUrl) + '">';
+  }
+
+  function itemRow(it) {
+    var offers = it.done ? [] : offersFor(it);
+    var meta = [];
+    if (it.note) meta.push('<span>' + esc(it.note) + '</span>');
+    if (offers.length) {
+      var o = offers[0];
+      meta.push('<span class="tag' + (o._state === 'soon' ? ' later' : '') + '">' + esc(mk(o.market).name) + ' ' + euro.format(o.price) +
+        (o._state === 'soon' && o.validFrom ? ' ab ' + esc(fmtDay(o.validFrom).split(',')[0]) : '') + '</span>' +
+        (offers.length > 1 ? '<span>+' + (offers.length - 1) + ' weitere</span>' : ''));
+    }
+    var q = fmtQty(it.qty, it.unit);
+    return '<li class="item' + (it.done ? ' done' : '') + '" data-id="' + esc(it.id) + '">' +
+      '<button type="button" class="check" data-act="toggle" aria-label="' + esc(it.name) + (it.done ? ' wieder auf die Liste' : ' abhaken') + '"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span></button>' +
+      '<button type="button" class="ibody" data-act="edit">' +
+      '<span class="line1">' + (q ? '<span class="qty">' + esc(q) + '</span>' : '') + '<span class="iname">' + esc(it.name) + '</span></span>' +
+      (meta.length ? '<span class="imeta">' + meta.join('') + '</span>' : '') +
+      '</button>' + whoImg(it.done ? it.doneBy : it.addedBy) + '</li>';
+  }
+
+  function renderList() {
+    var body = $('#listBody');
+    $('#roBanner').hidden = S.canWrite;
+    $('#addInput').disabled = !S.canWrite;
+    if (!S.loaded) { body.innerHTML = '<div class="empty"><p>Listen werden geladen …</p></div>'; return; }
+    var list = currentList();
+    if (!list) {
+      body.innerHTML = '<div class="empty"><h2>Noch keine Liste</h2><p>Lege für jeden Markt eine eigene Liste an. Ihr seht beide sofort jede Änderung.</p>' +
+        (S.canWrite ? '<div class="row"><button class="btn primary" data-act="quick-list" data-market="lidl" type="button">Lidl</button><button class="btn primary" data-act="quick-list" data-market="aldi" type="button">Aldi Nord</button><button class="btn primary" data-act="quick-list" data-market="rewe" type="button">Rewe</button></div>' : '') +
+        '</div>';
+      return;
+    }
+    var items = S.items.filter(function (i) { return i.listId === list.id; });
+    var open = items.filter(function (i) { return !i.done; });
+    var done = items.filter(function (i) { return i.done; }).sort(function (a, b) { return (b.doneAt || 0) - (a.doneAt || 0); });
+    if (!items.length) {
+      body.innerHTML = '<div class="empty"><h2>' + esc(list.name) + ' ist leer</h2><p>Tippe oben ein, was ihr braucht. Menge geht gleich mit: „2 kg Äpfel“, „3x Joghurt“, „Milch 2“.</p></div>';
+      return;
+    }
+    var order = (list.catOrder && list.catOrder.length ? list.catOrder : DEFAULT_ORDER).slice();
+    DEFAULT_ORDER.forEach(function (c) { if (order.indexOf(c) < 0) order.push(c); });
+    var html = '';
+    var onOffer = open.filter(function (i) { return offersFor(i).length; }).length;
+    if (onOffer) html += '<div class="hint-offers"><span class="tag">%</span>' + onOffer + (onOffer === 1 ? ' Artikel ist' : ' Artikel sind') + ' gerade irgendwo im Angebot.</div>';
+    order.forEach(function (cid) {
+      var g = open.filter(function (i) { return (CAT_BY_ID[i.category] ? i.category : 'sonst') === cid; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name, 'de'); });
+      if (!g.length) return;
+      html += '<section class="group"><h3>' + esc(CAT_BY_ID[cid].name) + '<span class="num">' + g.length + '</span></h3><ul class="items">' + g.map(itemRow).join('') + '</ul></section>';
+    });
+    if (!open.length) html += '<div class="empty"><h2>Alles im Wagen</h2><p>Alle Artikel sind abgehakt.</p></div>';
+    if (done.length) {
+      html += '<section class="group"><h3>Im Wagen · ' + done.length + (S.canWrite ? '<button class="linkbtn danger" type="button" data-act="clear-done">Erledigte entfernen</button>' : '') + '</h3><ul class="items">' + done.map(itemRow).join('') + '</ul></section>';
+    }
+    body.innerHTML = html;
+  }
+
+  /* ---------- Suggestions ---------- */
+
+  function renderSuggest() {
+    var box = $('#suggest');
+    var q = fold(parseEntry($('#addInput').value).name);
+    if (!q || document.activeElement !== $('#addInput')) { box.hidden = true; return; }
+    var list = currentList();
+    var onList = {};
+    S.items.forEach(function (i) { if (list && i.listId === list.id && !i.done) onList[fold(i.name)] = 1; });
+    var hits = S.history.filter(function (h) {
+      var f = fold(h.name);
+      return f !== q && !onList[f] && (f.indexOf(q) === 0 || f.indexOf(' ' + q) >= 0 || (q.length >= 3 && f.indexOf(q) >= 0));
+    }).sort(function (a, b) { return (b.count || 0) - (a.count || 0); }).slice(0, 5);
+    if (!hits.length) { box.hidden = true; return; }
+    box.innerHTML = hits.map(function (h) {
+      return '<li><button type="button" data-suggest="' + esc(h.name) + '">' + esc(h.name) + '<small>' + esc((CAT_BY_ID[h.category] || CAT_BY_ID.sonst).name) + '</small></button></li>';
+    }).join('');
+    box.hidden = false;
+  }
+
+  /* ---------- Rendering: offers ---------- */
+
+  function offerCard(o, matched, inSheet) {
+    var disc = o.oldPrice && o.oldPrice > o.price ? Math.round((1 - o.price / o.oldPrice) * 100) : 0;
+    var valid = o._state === 'soon' && o.validFrom ? 'ab ' + fmtDay(o.validFrom) : (o.validTo ? 'bis ' + fmtDay(o.validTo) : '');
+    return '<li class="offer' + (matched ? ' match' : '') + '">' +
+      '<div class="otitle">' + esc(o.title) + '</div>' +
+      '<div class="oprice"><strong>' + euro.format(o.price) + '</strong>' +
+      (o.oldPrice ? '<s>' + euro.format(o.oldPrice) + '</s>' : '') + (disc >= 5 ? '<span class="disc">−' + disc + ' %</span>' : '') + '</div>' +
+      '<div class="osub"><span class="mk" style="--m:' + mk(o.market).color + '">' + esc(mk(o.market).name) + '</span>' +
+      (o.brand ? '<span>' + esc(o.brand) + '</span>' : '') + (o.size ? '<span>' + esc(o.size) + '</span>' : '') +
+      (valid ? '<span>' + esc(valid) + '</span>' : '') + '</div>' +
+      (matched ? '<div class="osub" style="grid-column:1/-1"><span>Passt zu: ' + esc(matched) + '</span></div>' : '') +
+      (S.canWrite && !matched && !inSheet ? '<button type="button" class="linkbtn oadd" data-act="offer-add" data-offer="' + esc(o.id) + '">+ Auf die Liste</button>' : '') +
+      '</li>';
+  }
+
+  function renderOffers() {
+    var f = S.offerFilter;
+    var segs = [['match', 'Für meine Listen'], ['all', 'Alle']].concat(OFFER_MARKETS.map(function (m) { return [m, MARKETS[m].name]; }));
+    $('#offerFilter').innerHTML = segs.map(function (s) {
+      return '<button type="button" class="chip" data-offer-filter="' + s[0] + '" aria-pressed="' + (f === s[0]) + '"' +
+        (MARKETS[s[0]] ? ' style="--m:' + MARKETS[s[0]].color + '"><span class="dot"></span>' : '>') + esc(s[1]) + '</button>';
+    }).join('');
+
+    var meta = S.offersMeta;
+    var act = activeOffers();
+    var counts = OFFER_MARKETS.map(function (m) {
+      var n = act.filter(function (o) { return o.market === m; }).length;
+      return MARKETS[m].name + ' ' + n;
+    }).join(' · ');
+    $('#offersMeta').textContent = act.length ? counts + (meta && meta.updatedAt ? ' · aktualisiert ' + ago(meta.updatedAt) : '') : 'Noch keine aktuellen Angebote eingetragen.';
+
+    var q = fold($('#offerSearch').value);
+    var body = $('#offersBody');
+    if (!S.loaded) { body.innerHTML = '<div class="empty"><p>Angebote werden geladen …</p></div>'; return; }
+
+    if (f === 'match') {
+      var open = S.items.filter(function (i) { return !i.done; });
+      var rows = [];
+      var seen = {};
+      open.forEach(function (it) {
+        offersFor(it).forEach(function (o) {
+          if (q && fold(o.title).indexOf(q) < 0) return;
+          if (!seen[o.id]) { seen[o.id] = []; rows.push(o); }
+          if (seen[o.id].indexOf(it.name) < 0) seen[o.id].push(it.name);
+        });
+      });
+      if (!rows.length) {
+        body.innerHTML = '<div class="empty"><h2>Gerade nichts im Angebot</h2><p>' +
+          (act.length ? 'Keiner eurer Artikel ist in den eingetragenen Angeboten. Unter „Alle“ siehst du sämtliche Angebote.' : 'Trag die Angebote der Woche unten ein. Danach markiert die Liste alles, was irgendwo günstiger ist.') + '</p></div>';
+        return;
+      }
+      rows.sort(function (a, b) { return a.market.localeCompare(b.market) || a.price - b.price; });
+      body.innerHTML = '<ul class="offers">' + rows.map(function (o) { return offerCard(o, seen[o.id].join(', ')); }).join('') + '</ul>';
+      return;
+    }
+    var list = act.filter(function (o) { return (f === 'all' || o.market === f) && (!q || fold(o.title + ' ' + (o.brand || '')).indexOf(q) >= 0); })
+      .sort(function (a, b) { return a.market.localeCompare(b.market) || a.title.localeCompare(b.title, 'de'); });
+    body.innerHTML = list.length ? '<ul class="offers">' + list.map(function (o) { return offerCard(o, ''); }).join('') + '</ul>'
+      : '<div class="empty"><h2>Keine Angebote</h2><p>' + (q ? 'Nichts gefunden für „' + esc($('#offerSearch').value) + '“.' : 'Für diesen Markt ist nichts eingetragen. Unten kannst du den Prospekt auslesen lassen.') + '</p></div>';
+  }
+
+  function renderOfferBadge() {
+    var n = 0;
+    S.items.forEach(function (i) { if (!i.done && offersFor(i).length) n++; });
+    var b = $('#offerBadge');
+    b.hidden = !n; b.textContent = n;
+  }
+
+  function renderImportPreview() {
+    var box = $('#flyerPreview');
+    var p = S.importPreview;
+    if (!p) { box.innerHTML = ''; return; }
+    if (!p.length) { box.innerHTML = '<p class="status">Auf den Bildern wurden keine Angebote erkannt. Versuche schärfere oder näher aufgenommene Bilder.</p>'; return; }
+    box.innerHTML = '<div class="eyebrow" style="margin-bottom:8px">' + p.length + ' erkannt · prüfen und übernehmen</div><ul class="preview">' +
+      p.map(function (o, i) {
+        return '<li><label><input type="checkbox" data-prev="' + i + '" checked><span>' + esc(o.title) + (o.size ? ' · ' + esc(o.size) : '') +
+          (o.validTo ? ' <small class="muted">bis ' + esc(fmtDay(o.validTo)) + '</small>' : '') + '</span><b class="num">' + euro.format(o.price) + '</b></label></li>';
+      }).join('') + '</ul><div class="row" style="justify-content:flex-start;margin-top:10px"><button class="btn primary" type="button" data-act="import-save">Übernehmen</button><button class="btn" type="button" data-act="import-cancel">Verwerfen</button></div>';
+  }
+
+  /* ---------- Rendering: settings ---------- */
+
+  function renderSettings() {
+    var box = $('#settingsBody');
+    if (box.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName)) { S.settingsStale = true; return; }
+    S.settingsStale = false;
+    var html = '';
+    var me = S.meId ? S.profiles[S.meId] : null;
+    html += '<div class="card"><h2>Konto</h2><div class="me">' + (me ? '<img alt="" src="' + esc(me.avatarUrl) + '">' : '') +
+      '<div><div style="font-weight:700">' + esc(me && me.name ? me.name : 'Angemeldet bei Claude') + '</div><div class="status">' +
+      (S.canWrite ? 'Du kannst Listen bearbeiten.' : 'Nur ansehen. Für Änderungen braucht dein Konto die Rolle Bearbeiter.') + '</div></div></div>' +
+      '<p class="status" style="margin:0">Alles, was einer von euch einträgt, erscheint sofort auf dem anderen Gerät. Für den zweiten Zugang: oben im Artifact auf „Teilen“ tippen und die zweite Person per E-Mail als <b>Bearbeiter</b> einladen.</p></div>';
+
+    html += '<div class="card"><h2>Listen</h2><div class="lists-edit">';
+    S.lists.forEach(function (l, idx) {
+      var order = (l.catOrder && l.catOrder.length ? l.catOrder : DEFAULT_ORDER).slice();
+      DEFAULT_ORDER.forEach(function (c) { if (order.indexOf(c) < 0) order.push(c); });
+      var dis = S.canWrite ? '' : ' disabled';
+      html += '<div class="lrow" data-lrow="' + esc(l.id) + '"><div class="grid2">' +
+        '<div class="field"><label for="ln-' + idx + '">Name</label><input id="ln-' + idx + '" data-lname="' + esc(l.id) + '" value="' + esc(l.name) + '"' + dis + '></div>' +
+        '<div class="field"><label for="lm-' + idx + '">Markt</label><select id="lm-' + idx + '" data-lmarket="' + esc(l.id) + '"' + dis + '>' +
+        Object.keys(MARKETS).map(function (m) { return '<option value="' + m + '"' + (l.market === m ? ' selected' : '') + '>' + esc(MARKETS[m].name) + '</option>'; }).join('') +
+        '</select></div></div>' +
+        '<details><summary class="lbl" style="cursor:pointer">Reihenfolge der Gänge im Laden</summary><ul class="order" style="margin-top:8px">' +
+        order.map(function (cid, i) {
+          return '<li><span>' + esc(CAT_BY_ID[cid].name) + '</span>' +
+            '<button type="button" aria-label="Nach oben" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="-1"' + (i === 0 || !S.canWrite ? ' disabled' : '') + '>↑</button>' +
+            '<button type="button" aria-label="Nach unten" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="1"' + (i === order.length - 1 || !S.canWrite ? ' disabled' : '') + '>↓</button></li>';
+        }).join('') + '</ul></details>' +
+        (S.canWrite ? '<div><button class="btn danger" type="button" data-del-list="' + esc(l.id) + '">Liste löschen</button></div>' : '') +
+        '</div>';
+    });
+    if (S.canWrite) html += '<button class="btn" type="button" data-act="new-list">+ Neue Liste</button>';
+    html += '</div></div>';
+
+    html += '<div class="card"><h2>Vorschläge</h2><p class="status" style="margin:0">Die App merkt sich ' + S.history.length + ' Artikel mit Gang und Einheit und schlägt sie beim Tippen vor.</p>' +
+      (S.canWrite && S.history.length ? '<div><button class="btn danger" type="button" data-act="clear-history">Gelernte Artikel löschen</button></div>' : '') + '</div>';
+
+    html += '<div class="card"><h2>Angebote</h2><p class="status" style="margin:0">' + activeOffers().length + ' aktuelle, ' + (S.offers.length - activeOffers().length) + ' abgelaufene Angebote gespeichert.</p>' +
+      (S.canWrite && S.offers.length > activeOffers().length ? '<div><button class="btn" type="button" data-act="prune-offers">Abgelaufene entfernen</button></div>' : '') + '</div>';
+    box.innerHTML = html;
+  }
+
+  /* ---------- Render dispatcher ---------- */
+
+  var renderQueued = false;
+  function render() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(function () {
+      renderQueued = false;
+      renderSync();
+      renderChips();
+      renderOfferBadge();
+      if (S.view === 'list') renderList();
+      if (S.view === 'offers') renderOffers();
+      if (S.view === 'settings') renderSettings();
+      ensureProfiles();
+    });
+  }
+
+  function setView(v) {
+    S.view = v;
+    ['list', 'offers', 'settings'].forEach(function (n) {
+      $('#view-' + n).hidden = n !== v;
+    });
+    document.querySelectorAll('.tab').forEach(function (t) {
+      if (t.getAttribute('data-view') === v) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current');
+    });
+    $('#listChips').hidden = v !== 'list';
+    window.scrollTo(0, 0);
+    render();
+  }
+
+  var profilePending = false;
+  function ensureProfiles() {
+    if (!S.user || profilePending) return;
+    var ids = {};
+    if (S.meId) ids[S.meId] = 1;
+    S.items.forEach(function (i) { if (i.addedBy) ids[i.addedBy] = 1; if (i.doneBy) ids[i.doneBy] = 1; });
+    var missing = Object.keys(ids).filter(function (id) { return !S.profiles[id]; });
+    if (!missing.length) return;
+    profilePending = true;
+    S.user.profiles(missing).then(function (ps) {
+      Object.keys(ps).forEach(function (k) { S.profiles[k] = ps[k]; });
+      profilePending = false;
+      render();
+    }, function () { profilePending = false; });
+  }
+
+  /* ---------- Edit sheet ---------- */
+
+  function openSheet(id) {
+    var it = S.items.find(function (i) { return i.id === id; });
+    if (!it) return;
+    S.editing = id;
+    $('#sheetTitle').textContent = it.name;
+    $('#eName').value = it.name;
+    $('#eQty').value = it.qty != null ? String(it.qty).replace('.', ',') : '';
+    $('#eUnit').innerHTML = UNITS.map(function (u) { return '<option value="' + u + '"' + ((it.unit || '') === u ? ' selected' : '') + '>' + (u || '–') + '</option>'; }).join('');
+    $('#eCat').innerHTML = CATS.map(function (c) { return '<option value="' + c.id + '"' + (it.category === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('');
+    $('#eList').innerHTML = S.lists.map(function (l) { return '<option value="' + esc(l.id) + '"' + (it.listId === l.id ? ' selected' : '') + '>' + esc(l.name) + '</option>'; }).join('');
+    $('#eNote').value = it.note || '';
+    var offers = offersFor(it);
+    $('#eOffers').innerHTML = offers.length ? '<div class="lbl" style="margin-bottom:6px">Im Angebot</div><ul class="offers">' + offers.slice(0, 4).map(function (o) { return offerCard(o, '', true); }).join('') + '</ul>' : '';
+    var audit = '';
+    var a = S.profiles[it.addedBy], d = S.profiles[it.doneBy];
+    if (it.addedBy || it.createdAt) audit += '<div>' + (a ? '<img alt="" src="' + esc(a.avatarUrl) + '">' : '') + '<span>Hinzugefügt von ' + esc(a && a.name ? a.name : 'jemandem') + ' · ' + esc(ago(it.createdAt)) + '</span></div>';
+    if (it.done) audit += '<div>' + (d ? '<img alt="" src="' + esc(d.avatarUrl) + '">' : '') + '<span>Abgehakt von ' + esc(d && d.name ? d.name : 'jemandem') + ' · ' + esc(ago(it.doneAt)) + '</span></div>';
+    $('#eAudit').innerHTML = audit;
+    ['eName', 'eQty', 'eUnit', 'eCat', 'eList', 'eNote', 'eSave', 'eDelete'].forEach(function (k) { $('#' + k).disabled = !S.canWrite; });
+    $('#backdrop').hidden = false;
+    $('#sheet').hidden = false;
+  }
+  function closeSheet() {
+    S.editing = null;
+    $('#sheet').hidden = true;
+    $('#backdrop').hidden = true;
+    var del = $('#eDelete');
+    if (del.classList.contains('armed')) { del.classList.remove('armed'); del.textContent = del.dataset.label; }
+  }
+  function saveSheet() {
+    var id = S.editing;
+    var it = S.items.find(function (i) { return i.id === id; });
+    if (!it) { closeSheet(); toast('Der Artikel wurde inzwischen gelöscht.'); return; }
+    var name = cap($('#eName').value.trim()) || it.name;
+    var data = {
+      name: name, qty: parseNum($('#eQty').value), unit: $('#eUnit').value,
+      category: $('#eCat').value, listId: $('#eList').value, note: $('#eNote').value.trim(), updatedAt: Date.now()
+    };
+    closeSheet();
+    write(function () { return S.db.doc('items/' + id).update(data); }).then(function (ok) {
+      if (ok && (data.category !== it.category || data.unit !== it.unit || name !== it.name)) learn(name, data.unit, data.category, false);
+    });
+  }
+
+  /* ---------- Offers import ---------- */
+
+  function normalizeOffer(o, market) {
+    if (!o || typeof o !== 'object') return null;
+    var price = parseNum(o.price);
+    var title = String(o.title || '').trim().slice(0, 120);
+    if (!title || price == null || price <= 0 || price > 1000) return null;
+    var iso = /^\d{4}-\d{2}-\d{2}$/;
+    return {
+      market: market, title: title, brand: String(o.brand || '').trim().slice(0, 60),
+      price: Math.round(price * 100) / 100,
+      oldPrice: parseNum(o.oldPrice) && parseNum(o.oldPrice) > price ? Math.round(parseNum(o.oldPrice) * 100) / 100 : null,
+      size: String(o.size || '').trim().slice(0, 40),
+      validFrom: iso.test(o.validFrom) ? o.validFrom : null,
+      validTo: iso.test(o.validTo) ? o.validTo : null,
+      keywords: Array.isArray(o.keywords) ? o.keywords.map(function (k) { return String(k).toLowerCase().slice(0, 40); }).slice(0, 6) : []
+    };
+  }
+  function offerId(o) { return (o.market + '-' + slug(o.title) + '-' + (o.validTo || 'offen')).slice(0, 180); }
+
+  function readFlyer() {
+    var status = $('#flyerStatus');
+    var files = Array.prototype.slice.call($('#flyerFiles').files || []);
+    var market = $('#flyerMarket').value;
+    status.classList.remove('err');
+    if (!S.sample) { status.textContent = 'Das Auslesen ist hier nicht verfügbar. Trag die Angebote von Hand ein.'; status.classList.add('err'); return; }
+    if (!files.length) { status.textContent = 'Wähle zuerst ein oder mehrere Prospekt-Bilder aus.'; status.classList.add('err'); return; }
+    var max = (S.sampleLimits && S.sampleLimits.images && S.sampleLimits.images.maxCount) || 5;
+    if (files.length > max) { files = files.slice(0, max); toast('Es werden die ersten ' + max + ' Bilder ausgelesen.'); }
+    var btn = $('#flyerRead');
+    btn.disabled = true;
+    status.textContent = 'Claude liest den Prospekt. Das dauert meist 20–60 Sekunden …';
+    var t = today();
+    var prompt = 'Die Bilder zeigen Seiten aus dem aktuellen Wochenprospekt von ' + MARKETS[market].name + ' (Deutschland). Heute ist ' + t + ' (' + fmtDay(t) + ').\n' +
+      'Lies jedes Lebensmittel-, Getränke- und Drogerie-Angebot aus, das klar lesbar ist. Lass Non-Food-Aktionsware wie Kleidung, Werkzeug oder Möbel weg. Erfinde nichts.\n' +
+      'Antworte nur mit einem JSON-Array. Jedes Element: {"title": Produktname wie im Prospekt ohne Marke, "brand": Marke oder "", "price": Angebotspreis in Euro als Zahl, ' +
+      '"oldPrice": Normalpreis als Zahl oder null, "size": Packungsgröße wie "500 g" oder "", "validFrom": "YYYY-MM-DD" oder null, "validTo": "YYYY-MM-DD" oder null, ' +
+      '"keywords": 1 bis 4 allgemeine deutsche Wörter für die Produktart in Kleinschreibung, z. B. ["milch","vollmilch"] oder ["hähnchen","hähnchenbrust"]}.\n' +
+      'Steht nur ein Wochentag da (z. B. "ab Montag"), rechne das Datum ab heute. Gilt ein Angebot nur eine Woche und ist kein Ende angegeben, setze validTo auf den folgenden Samstag.\n' +
+      'Beispiel: [{"title":"Frische Vollmilch 3,5 %","brand":"","price":0.99,"oldPrice":1.19,"size":"1 l","validFrom":"2026-10-26","validTo":"2026-10-31","keywords":["milch","vollmilch"]}]';
+    S.sample.json(prompt, { images: files, modelTier: 'default' }).then(function (res) {
+      var arr = Array.isArray(res) ? res : (res && Array.isArray(res.offers) ? res.offers : []);
+      S.importPreview = arr.map(function (o) { return normalizeOffer(o, market); }).filter(Boolean);
+      S.importMarket = market;
+      status.textContent = '';
+      renderImportPreview();
+    }, function (e) {
+      var c = e && e.code;
+      status.classList.add('err');
+      status.textContent = c === 'not_granted' ? 'Ohne deine Erlaubnis kann Claude die Bilder nicht lesen. Trag die Angebote von Hand ein.'
+        : c === 'rate_limited' ? 'Gerade zu viele Anfragen. Versuch es in ein paar Minuten noch einmal.'
+        : c === 'image_rejected' ? 'Ein Bild wurde nicht angenommen. Nimm JPG, PNG oder WebP unter 20 MB.'
+        : c === 'images_unavailable' ? 'In dieser Ansicht können keine Bilder an Claude gehen. Öffne die App in claude.ai.'
+        : c === 'invalid_json' ? 'Die Antwort ließ sich nicht auswerten. Bitte noch einmal versuchen, eventuell mit weniger Bildern.'
+        : 'Das Auslesen hat nicht geklappt. Bitte noch einmal versuchen.';
+    }).then(function () { btn.disabled = false; });
+  }
+
+  function saveImport() {
+    var p = S.importPreview || [];
+    var picked = p.filter(function (o, i) { var cb = document.querySelector('[data-prev="' + i + '"]'); return cb && cb.checked; });
+    if (!picked.length) { toast('Nichts ausgewählt.'); return; }
+    var market = S.importMarket;
+    var now = Date.now();
+    var expired = S.offers.filter(function (o) { return o.market === market && o._state === 'expired'; });
+    var chain = Promise.resolve();
+    picked.forEach(function (o) {
+      var doc = Object.assign({}, o, { source: 'foto', addedBy: S.meId, createdAt: now });
+      chain = chain.then(function () { return S.db.doc('offers/' + offerId(o)).set(doc); });
+    });
+    expired.forEach(function (o) { chain = chain.then(function () { return S.db.doc('offers/' + o.id).delete(); }); });
+    chain = chain.then(function () { return S.db.doc('meta/offers').set({ updatedAt: now, by: S.meId }); });
+    write(function () { return chain; }).then(function (ok) {
+      if (ok) {
+        S.importPreview = null; $('#flyerFiles').value = '';
+        renderImportPreview();
+        S.offerFilter = 'match';
+        toast(picked.length + ' Angebote von ' + MARKETS[market].name + ' gespeichert.');
+        render();
+      }
+    });
+  }
+
+  /* ---------- Events ---------- */
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button, [data-list]');
+    if (!t) return;
+    var act = t.getAttribute('data-act');
+
+    if (t.hasAttribute('data-view')) { setView(t.getAttribute('data-view')); return; }
+    if (t.hasAttribute('data-list')) {
+      S.listId = t.getAttribute('data-list');
+      try { localStorage.setItem('ez-list', S.listId); } catch (err) { }
+      render();
+      return;
+    }
+    if (t.hasAttribute('data-theme-set')) { setTheme(t.getAttribute('data-theme-set')); return; }
+    if (t.hasAttribute('data-suggest')) {
+      var p = parseEntry($('#addInput').value);
+      var name = t.getAttribute('data-suggest');
+      addItem((p.qty != null ? p.qty + ' ' + (p.unit || '') + ' ' : '') + name);
+      $('#addInput').value = ''; $('#suggest').hidden = true; $('#addInput').focus();
+      return;
+    }
+    if (t.hasAttribute('data-offer-filter')) { S.offerFilter = t.getAttribute('data-offer-filter'); renderOffers(); return; }
+    if (t.hasAttribute('data-move')) {
+      var l = S.lists.find(function (x) { return x.id === t.getAttribute('data-move'); });
+      if (!l) return;
+      var order = (l.catOrder && l.catOrder.length ? l.catOrder : DEFAULT_ORDER).slice();
+      DEFAULT_ORDER.forEach(function (c) { if (order.indexOf(c) < 0) order.push(c); });
+      var i = order.indexOf(t.getAttribute('data-cat')), j = i + Number(t.getAttribute('data-dir'));
+      if (i < 0 || j < 0 || j >= order.length) return;
+      var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+      write(function () { return S.db.doc('lists/' + l.id).update({ catOrder: order }); });
+      return;
+    }
+    if (t.hasAttribute('data-del-list')) {
+      var dl = S.lists.find(function (x) { return x.id === t.getAttribute('data-del-list'); });
+      if (dl) arm(t, 'Mit allen Artikeln löschen?', function () { deleteList(dl); });
+      return;
+    }
+
+    var row = t.closest('.item');
+    if (act === 'toggle' && row) { if (S.canWrite) toggleItem(row.getAttribute('data-id')); return; }
+    if (act === 'edit' && row) { openSheet(row.getAttribute('data-id')); return; }
+    if (act === 'clear-done') { var cl = currentList(); if (cl) arm(t, 'Wirklich entfernen?', function () { clearDone(cl.id); }); return; }
+    if (act === 'new-list') {
+      createList('Neue Liste', 'none').then(function (ok) { if (ok) { setView('settings'); toast('Liste angelegt. Gib ihr hier einen Namen.'); } });
+      return;
+    }
+    if (act === 'quick-list') { var qm = t.getAttribute('data-market'); createList(MARKETS[qm].name, qm); return; }
+    if (act === 'offer-add') {
+      var o = S.offers.find(function (x) { return x.id === t.getAttribute('data-offer'); });
+      if (!o) return;
+      var target = S.lists.find(function (x) { return x.market === o.market; }) || currentList();
+      if (target) addItem(o.title, { list: target, note: 'Angebot ' + euro.format(o.price) + ' bei ' + mk(o.market).name });
+      else toast('Lege zuerst eine Liste an.');
+      return;
+    }
+    if (act === 'import-save') { saveImport(); return; }
+    if (act === 'import-cancel') { S.importPreview = null; renderImportPreview(); return; }
+    if (act === 'clear-history') {
+      arm(t, 'Wirklich alle löschen?', function () {
+        var chain = Promise.resolve();
+        S.history.forEach(function (h) { chain = chain.then(function () { return S.db.doc('history/' + h.id).delete(); }); });
+        write(function () { return chain; }).then(function (ok) { if (ok) toast('Gelernte Artikel gelöscht.'); });
+      });
+      return;
+    }
+    if (act === 'prune-offers') {
+      var chain2 = Promise.resolve();
+      var ex = S.offers.filter(function (x) { return x._state === 'expired'; });
+      ex.forEach(function (x) { chain2 = chain2.then(function () { return S.db.doc('offers/' + x.id).delete(); }); });
+      write(function () { return chain2; }).then(function (ok) { if (ok) toast(ex.length + ' abgelaufene Angebote entfernt.'); });
+    }
+  });
+
+  $('#addForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (!S.canWrite) return;
+    var v = $('#addInput').value;
+    if (!v.trim()) return;
+    addItem(v);
+    $('#addInput').value = '';
+    $('#suggest').hidden = true;
+  });
+  $('#addInput').addEventListener('input', renderSuggest);
+  $('#addInput').addEventListener('focus', renderSuggest);
+  $('#addInput').addEventListener('blur', function () { setTimeout(function () { $('#suggest').hidden = true; }, 150); });
+  $('#offerSearch').addEventListener('input', function () { renderOffers(); });
+
+  $('#settingsBody').addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.hasAttribute('data-lname')) {
+      var v = t.value.trim();
+      var id = t.getAttribute('data-lname');
+      if (v) write(function () { return S.db.doc('lists/' + id).update({ name: v }); });
+    }
+    if (t.hasAttribute('data-lmarket')) {
+      var id2 = t.getAttribute('data-lmarket'), m = t.value;
+      write(function () { return S.db.doc('lists/' + id2).update({ market: m }); });
+    }
+  });
+  $('#settingsBody').addEventListener('focusout', function () {
+    setTimeout(function () { if (S.settingsStale) renderSettings(); }, 0);
+  });
+
+  $('#eSave').addEventListener('click', saveSheet);
+  $('#eCancel').addEventListener('click', closeSheet);
+  $('#backdrop').addEventListener('click', closeSheet);
+  $('#eDelete').addEventListener('click', function () {
+    var id = S.editing;
+    arm($('#eDelete'), 'Wirklich löschen?', function () {
+      closeSheet();
+      write(function () { return S.db.doc('items/' + id).delete(); });
+    });
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && S.editing) closeSheet(); });
+
+  $('#flyerRead').addEventListener('click', readFlyer);
+  $('#manualForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var o = normalizeOffer({
+      title: $('#mTitle').value, price: $('#mPrice').value, oldPrice: $('#mOld').value,
+      validTo: $('#mTo').value || null, keywords: []
+    }, $('#mMarket').value);
+    if (!o) { toast('Bitte Produkt und Preis angeben.'); return; }
+    var doc = Object.assign(o, { source: 'manuell', addedBy: S.meId, createdAt: Date.now() });
+    write(function () { return S.db.doc('offers/' + offerId(o)).set(doc).then(function () { return S.db.doc('meta/offers').set({ updatedAt: Date.now(), by: S.meId }); }); })
+      .then(function (ok) { if (ok) { e.target.reset(); toast('Angebot gespeichert.'); } });
+  });
+
+  window.addEventListener('online', render);
+  window.addEventListener('offline', render);
+  setInterval(function () {
+    // Offers expire at midnight; refresh their state without touching the store.
+    S.offers.forEach(prepOffer);
+    render();
+  }, 5 * 60 * 1000);
+
+  /* ---------- Static selects ---------- */
+
+  var marketOpts = OFFER_MARKETS.map(function (m) { return '<option value="' + m + '">' + MARKETS[m].name + '</option>'; }).join('');
+  $('#flyerMarket').innerHTML = marketOpts;
+  $('#mMarket').innerHTML = marketOpts;
+  $('#flyerLinks').innerHTML = OFFER_MARKETS.map(function (m) {
+    return '<a href="' + MARKETS[m].url + '" target="_blank" rel="noopener">Prospekt ' + MARKETS[m].name + ' ↗</a>';
+  }).join('');
+
+  /* ---------- Boot ---------- */
+
+  function gate(title, text) {
+    ['list', 'offers', 'settings'].forEach(function (n) { $('#view-' + n).hidden = true; });
+    var g = $('#view-gate');
+    g.innerHTML = '<div class="empty"><h2>' + esc(title) + '</h2><p>' + esc(text) + '</p></div>';
+    g.hidden = false;
+    $('.tabbar').hidden = true;
+    $('#listChips').hidden = true;
+    var s = $('#sync'); s.setAttribute('data-state', 'off'); s.lastElementChild.textContent = 'Nicht verbunden';
+  }
+
+  applyTheme(loadTheme());
+  render();
+
+  var C = window.claude;
+  if (!C || typeof C.use !== 'function') {
+    gate('Bitte in Claude öffnen', 'Der Einkaufszettel speichert eure Listen in Claude. Öffne den geteilten Link in claude.ai oder der Claude-App und melde dich an.');
+    return;
+  }
+
+  C.use('db').then(function (db) {
+    if (!db) {
+      gate('Anmeldung nötig', 'Melde dich bei claude.ai an, damit du die gemeinsame Liste sehen und bearbeiten kannst. Danach die Seite neu laden.');
+      return;
+    }
+    S.db = db;
+    return C.use('user').then(function (user) {
+      S.user = user;
+      return user ? Promise.all([user.id(), user.can('data.write')]) : [null, null];
+    }).then(function (r) {
+      S.meId = r[0];
+      S.canWrite = r[1] !== false;
+      subscribe();
+      if (S.meId) {
+        db.doc('data/users/' + S.meId + '/prefs').get().then(function (snap) {
+          var t = snap.exists && snap.data().theme;
+          if (t && t !== loadTheme()) { applyTheme(t); try { localStorage.setItem('ez-theme', t); } catch (e) { } }
+        }, function () { });
+      }
+      render();
+    });
+  });
+
+  C.use('sample').then(function (s) {
+    S.sample = s;
+    if (s) s.limits().then(function (l) { S.sampleLimits = l; }, function () { });
+  });
+
+  function onErr(e) {
+    console.warn(e);
+    if (e && e.code === 'revoked') gate('Kein Zugriff mehr', 'Der Zugriff auf diesen Einkaufszettel wurde beendet.');
+    else { S.live = false; render(); }
+  }
+  function docs(snap) { return snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); }); }
+
+  function subscribe() {
+    var got = {};
+    function mark(k, snap) {
+      got[k] = true;
+      if (got.lists && got.items) S.loaded = true;
+      if (k === 'items') S.live = !snap.metadata.fromCache;
+    }
+    S.db.collection('lists').onSnapshot(function (snap) {
+      S.lists = docs(snap).sort(function (a, b) { return (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0); });
+      if (!S.lists.find(function (l) { return l.id === S.listId; })) {
+        var remembered = null;
+        try { remembered = localStorage.getItem('ez-list'); } catch (e) { }
+        S.listId = (S.lists.find(function (l) { return l.id === remembered; }) || S.lists[0] || {}).id || null;
+      }
+      mark('lists', snap); render();
+    }, onErr);
+    S.db.collection('items').onSnapshot(function (snap) {
+      S.items = docs(snap);
+      mark('items', snap); render();
+      if (S.editing && !S.items.find(function (i) { return i.id === S.editing; })) { closeSheet(); toast('Der Artikel wurde gerade gelöscht.'); }
+    }, onErr);
+    S.db.collection('history').onSnapshot(function (snap) {
+      S.history = docs(snap);
+      S.histMap = new Map();
+      S.history.forEach(function (h) { S.histMap.set(fold(h.name), h); });
+    }, onErr);
+    S.db.collection('offers').onSnapshot(function (snap) {
+      S.offers = docs(snap).map(prepOffer);
+      render();
+    }, onErr);
+    S.db.doc('meta/offers').onSnapshot(function (snap) {
+      S.offersMeta = snap.exists ? snap.data() : null;
+      render();
+    }, onErr);
+  }
+
+})();
+</script>
