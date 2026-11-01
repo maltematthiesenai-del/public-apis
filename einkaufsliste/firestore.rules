@@ -1,21 +1,61 @@
 rules_version = '2';
 
-// Only the two household members may read or write the shopping lists.
-// Replace both addresses with your own before publishing these rules.
+// One admin decides everything. Further people get in only when the admin
+// adds their address in the app (Einstellungen → Zugang).
+// Replace ADMIN@EXAMPLE.COM with the admin's address (lower case) before
+// publishing these rules in the Firebase console.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function member() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() in [
-          'erste.person@example.com',
-          'zweite.person@example.com'
-        ];
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function email() {
+      return request.auth.token.email.lower();
+    }
+    function isAdmin() {
+      return signedIn() && email() == 'ADMIN@EXAMPLE.COM'.lower();
+    }
+    function accessPath() {
+      return /databases/$(database)/documents/households/main/config/access;
+    }
+    function isMember() {
+      return isAdmin()
+        || (signedIn() && exists(accessPath()) && email() in get(accessPath()).data.emails);
     }
 
-    match /households/main/{document=**} {
-      allow read, write: if member();
+    match /households/main {
+      // Who may open the lists: only the admin changes it.
+      match /config/{doc} {
+        allow read: if isMember();
+        allow write: if isAdmin();
+      }
+      // Lists, their markets and aisle order: admin only.
+      match /lists/{id} {
+        allow read: if isMember();
+        allow write: if isAdmin();
+      }
+      // Shopping items: everyone with access.
+      match /items/{id} {
+        allow read, write: if isMember();
+      }
+      // Learned items and offers: everyone adds, only the admin deletes.
+      match /history/{id} {
+        allow read, create, update: if isMember();
+        allow delete: if isAdmin();
+      }
+      match /offers/{id} {
+        allow read, create, update: if isMember();
+        allow delete: if isAdmin();
+      }
+      match /meta/{id} {
+        allow read, write: if isMember();
+      }
+      // Each person keeps their own name; the admin may remove anyone.
+      match /members/{uid} {
+        allow read: if isMember();
+        allow write: if isAdmin() || (isMember() && request.auth.uid == uid);
+      }
     }
 
     // Personal settings (light/dark), private to each account.

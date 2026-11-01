@@ -1,7 +1,7 @@
 /* Einkaufszettel — UI and actions. Data lives in Firestore (see store.js);
    both phones subscribe to the same household and see changes live. */
 
-import { firebaseConfig } from './config.js';
+import { firebaseConfig, adminEmailHash } from './config.js';
 import { createStore } from './store.js';
 import {
   MARKETS, OFFER_MARKETS, CATS, CAT_BY_ID, DEFAULT_ORDER, UNITS,
@@ -10,13 +10,14 @@ import {
 } from './core.js';
 
 // Shown under Einstellungen → App; bump together with CACHE in sw.js.
-const APP_VERSION = '2026-11-01.1';
+const APP_VERSION = '2026-11-01.2';
 const OFFER_MODEL = 'claude-opus-5-5';
 const PERSON_COLORS = ['#0B7A5C', '#B5527A', '#3D6FD8', '#C26A1B', '#7A55C7', '#1F8A9E'];
 
 const S = {
   store: null, me: null, started: false,
-  canWrite: true, live: false, pending: false, loaded: false,
+  canWrite: true, isAdmin: false, live: false, pending: false, loaded: false,
+  access: { emails: [] },
   lists: [], items: [], history: [], offers: [], offersMeta: null, members: {},
   histMap: new Map(),
   listId: null, view: 'list', offerFilter: 'match',
@@ -189,7 +190,7 @@ function renderChips() {
     return '<button type="button" class="chip" data-list="' + esc(l.id) + '" aria-pressed="' + Boolean(cur && cur.id === l.id) + '" style="--m:' + mk(l.market).color + '">' +
       '<span class="dot"></span>' + esc(l.name) + (open ? ' <span class="count num">' + open + '</span>' : '') + '</button>';
   }).join('');
-  if (S.loaded && S.canWrite) html += '<button type="button" class="chip ghost" data-act="new-list">+ Liste</button>';
+  if (S.loaded && S.canWrite && S.isAdmin) html += '<button type="button" class="chip ghost" data-act="new-list">+ Liste</button>';
   $('#listChips').innerHTML = html;
 }
 
@@ -228,7 +229,7 @@ function renderList() {
   const list = currentList();
   if (!list) {
     body.innerHTML = '<div class="empty"><h2>Noch keine Liste</h2><p>Lege für jeden Markt eine eigene Liste an. Ihr seht beide sofort jede Änderung.</p>' +
-      (S.canWrite ? '<div class="row"><button class="btn primary" data-act="quick-lists" type="button">Lidl, Aldi Nord und Rewe anlegen</button></div>' : '') +
+      (S.canWrite && S.isAdmin ? '<div class="row"><button class="btn primary" data-act="quick-lists" type="button">Lidl, Aldi Nord und Rewe anlegen</button></div>' : '<p>Listen legt der Admin an.</p>') +
       '</div>';
     return;
   }
@@ -354,6 +355,26 @@ function renderImportPreview() {
 
 /* ---------- Rendering: settings ---------- */
 
+// Admin only: who may open the lists. The admin is fixed in the Firestore rules;
+// everyone else needs their address in config/access.
+function renderAccessCard() {
+  const emails = S.access.emails || [];
+  const byEmail = {};
+  Object.keys(S.members).forEach((uid) => { const m = S.members[uid]; if (m.email) byEmail[m.email] = uid; });
+  const rows = emails.map((e) => {
+    const uid = byEmail[e];
+    return '<li><span style="min-width:0;overflow-wrap:anywhere">' + (uid ? esc(person(uid).name) + ' · ' : '') + esc(e) +
+      '<br><small class="muted">' + (uid ? 'hat Zugang' : 'freigeschaltet, noch nicht angemeldet') + '</small></span>' +
+      '<button class="btn danger" type="button" data-access-remove="' + esc(e) + '">Entfernen</button></li>';
+  }).join('');
+  return '<div class="card"><h2>Zugang</h2>' +
+    '<p class="status" style="margin:0">Du bist Admin. Außer dir sehen nur diese Adressen die Listen. Wer hier fehlt, kommt nicht hinein, auch mit eigenem Konto nicht.</p>' +
+    (rows ? '<ul class="access">' + rows + '</ul>' : '<p class="status" style="margin:0"><b>Nur du hast Zugang.</b></p>') +
+    '<div class="keyrow"><input class="search" id="accessEmail" type="email" inputmode="email" autocomplete="off" placeholder="E-Mail der zweiten Person" aria-label="E-Mail freischalten">' +
+    '<button class="btn primary" type="button" data-act="access-add">Freischalten</button></div></div>';
+}
+
+
 function renderSettings() {
   const box = $('#settingsBody');
   if (box.contains(document.activeElement) && /INPUT|SELECT/.test(document.activeElement.tagName)) { S.settingsStale = true; return; }
@@ -363,12 +384,15 @@ function renderSettings() {
   html += '<div class="card"><h2>Konto</h2><div class="me">' + (S.me ? avatar(S.me.uid, 'av') : '') +
     '<div style="min-width:0"><div style="font-weight:700">' + esc(me ? me.name : '') + '</div><div class="status" style="overflow-wrap:anywhere">' + esc(S.me ? S.me.email : '') + '</div></div></div>' +
     '<div class="field"><label for="myName">Angezeigter Name</label><input id="myName" data-myname value="' + esc(me ? me.name : '') + '"' + (S.canWrite ? '' : ' disabled') + '></div>' +
-    (S.canWrite ? '' : '<p class="status err" style="margin:0">Dein Konto ist noch nicht freigeschaltet.</p>') + '</div>';
+    (S.canWrite ? '' : '<p class="status err" style="margin:0">Dein Konto ist noch nicht freigeschaltet. Bitte den Admin, deine E-Mail-Adresse unter Einstellungen → Zugang einzutragen.</p>') + '</div>';
 
-  html += '<div class="card"><h2>Listen</h2><div class="lists-edit">';
+  if (S.isAdmin) html += renderAccessCard();
+
+  const admin = S.canWrite && S.isAdmin;
+  html += '<div class="card"><h2>Listen</h2>' + (admin ? '' : '<p class="status" style="margin:0">Listen und Gänge ändert der Admin.</p>') + '<div class="lists-edit">';
   S.lists.forEach((l, idx) => {
     const order = catOrderOf(l);
-    const dis = S.canWrite ? '' : ' disabled';
+    const dis = admin ? '' : ' disabled';
     html += '<div class="lrow"><div class="grid2">' +
       '<div class="field"><label for="ln-' + idx + '">Name</label><input id="ln-' + idx + '" data-lname="' + esc(l.id) + '" value="' + esc(l.name) + '"' + dis + '></div>' +
       '<div class="field"><label for="lm-' + idx + '">Markt</label><select id="lm-' + idx + '" data-lmarket="' + esc(l.id) + '"' + dis + '>' +
@@ -376,21 +400,21 @@ function renderSettings() {
       '</select></div></div>' +
       '<details><summary class="lbl" style="cursor:pointer">Reihenfolge der Gänge im Laden</summary><ul class="order" style="margin-top:8px">' +
       order.map((cid, i) => '<li><span>' + esc(CAT_BY_ID[cid].name) + '</span>' +
-        '<button type="button" aria-label="Nach oben" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="-1"' + (i === 0 || !S.canWrite ? ' disabled' : '') + '>↑</button>' +
-        '<button type="button" aria-label="Nach unten" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="1"' + (i === order.length - 1 || !S.canWrite ? ' disabled' : '') + '>↓</button></li>').join('') +
+        '<button type="button" aria-label="Nach oben" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="-1"' + (i === 0 || !admin ? ' disabled' : '') + '>↑</button>' +
+        '<button type="button" aria-label="Nach unten" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="1"' + (i === order.length - 1 || !admin ? ' disabled' : '') + '>↓</button></li>').join('') +
       '</ul></details>' +
-      (S.canWrite ? '<div><button class="btn danger" type="button" data-del-list="' + esc(l.id) + '">Liste löschen</button></div>' : '') +
+      (admin ? '<div><button class="btn danger" type="button" data-del-list="' + esc(l.id) + '">Liste löschen</button></div>' : '') +
       '</div>';
   });
-  if (S.canWrite) html += '<button class="btn" type="button" data-act="new-list">+ Neue Liste</button>';
+  if (admin) html += '<button class="btn" type="button" data-act="new-list">+ Neue Liste</button>';
   html += '</div></div>';
 
   html += '<div class="card"><h2>Vorschläge</h2><p class="status" style="margin:0">Die App merkt sich ' + S.history.length + ' Artikel mit Gang und Einheit und schlägt sie beim Tippen vor.</p>' +
-    (S.canWrite && S.history.length ? '<div><button class="btn danger" type="button" data-act="clear-history">Gelernte Artikel löschen</button></div>' : '') + '</div>';
+    (admin && S.history.length ? '<div><button class="btn danger" type="button" data-act="clear-history">Gelernte Artikel löschen</button></div>' : '') + '</div>';
 
   const act = activeOffers().length;
   html += '<div class="card"><h2>Angebote</h2><p class="status" style="margin:0">' + act + ' aktuelle, ' + (S.offers.length - act) + ' abgelaufene Angebote gespeichert.</p>' +
-    (S.canWrite && S.offers.length > act ? '<div><button class="btn" type="button" data-act="prune-offers">Abgelaufene entfernen</button></div>' : '') + '</div>';
+    (admin && S.offers.length > act ? '<div><button class="btn" type="button" data-act="prune-offers">Abgelaufene entfernen</button></div>' : '') + '</div>';
   box.innerHTML = html;
 
   const k = getApiKey();
@@ -624,7 +648,7 @@ function saveImport() {
   const market = S.importMarket;
   const now = Date.now();
   const ops = picked.map((o) => ({ op: 'set', coll: 'offers', id: offerId(o), data: Object.assign({}, o, { source: 'foto', addedBy: S.me.uid, createdAt: now }) }));
-  S.offers.filter((o) => o.market === market && o._state === 'expired').forEach((o) => ops.push({ op: 'delete', coll: 'offers', id: o.id }));
+  if (S.isAdmin) S.offers.filter((o) => o.market === market && o._state === 'expired').forEach((o) => ops.push({ op: 'delete', coll: 'offers', id: o.id }));
   ops.push({ op: 'set', coll: 'meta', id: 'offers', data: { updatedAt: now, by: S.me.uid } });
   write(() => S.store.batch(ops));
   S.importPreview = null; $('#flyerFiles').value = '';
@@ -695,6 +719,25 @@ document.addEventListener('click', (e) => {
     else toast('Lege zuerst eine Liste an.');
     return;
   }
+  if (act === 'access-add') {
+    const e = $('#accessEmail').value.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { toast('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+    if (e === (S.me.email || '').toLowerCase()) { toast('Du hast als Admin ohnehin Zugang.'); return; }
+    const emails = (S.access.emails || []).filter((x) => x !== e).concat([e]);
+    write(() => S.store.set('config', 'access', { emails, updatedAt: Date.now() }))
+      .then((ok) => { if (ok) toast(e + ' ist freigeschaltet.'); });
+    $('#accessEmail').value = '';
+    return;
+  }
+  if (t.hasAttribute('data-access-remove')) {
+    const e = t.getAttribute('data-access-remove');
+    arm(t, 'Wirklich?', () => {
+      const ops = [{ op: 'set', coll: 'config', id: 'access', data: { emails: (S.access.emails || []).filter((x) => x !== e), updatedAt: Date.now() } }];
+      Object.keys(S.members).forEach((uid) => { if (S.members[uid].email === e) ops.push({ op: 'delete', coll: 'members', id: uid }); });
+      write(() => S.store.batch(ops)).then((ok) => { if (ok) toast(e + ' hat keinen Zugang mehr.'); });
+    });
+    return;
+  }
   if (act === 'import-save') { saveImport(); return; }
   if (act === 'import-cancel') { S.importPreview = null; renderImportPreview(); return; }
   if (act === 'clear-history') {
@@ -737,7 +780,7 @@ $('#settingsBody').addEventListener('change', (e) => {
   }
   if (t.hasAttribute('data-myname')) {
     const v = t.value.trim().slice(0, 40);
-    if (v) write(() => S.store.set('members', S.me.uid, { name: v, color: person(S.me.uid).color }));
+    if (v) write(() => S.store.set('members', S.me.uid, { name: v, color: person(S.me.uid).color, email: (S.me.email || '').toLowerCase() }));
   }
 });
 $('#settingsBody').addEventListener('focusout', () => {
@@ -917,21 +960,31 @@ function subscribe() {
     S.members = {};
     docs.forEach((d) => { S.members[d.id] = d; });
     // First visit of this person: introduce them to the household.
+    const myEmail = (S.me && S.me.email || '').toLowerCase();
     if (S.me && !S.members[S.me.uid] && S.canWrite) {
       let name = S.me.name;
       try { name = name || localStorage.getItem('ez-pending-name') || ''; } catch (e) { }
-      name = name || (S.me.email || '').split('@')[0];
-      write(() => S.store.set('members', S.me.uid, { name: name.slice(0, 40), color: personColor(S.me.uid) }));
+      name = name || myEmail.split('@')[0];
+      write(() => S.store.set('members', S.me.uid, { name: name.slice(0, 40), color: personColor(S.me.uid), email: myEmail }));
+    } else if (S.me && S.members[S.me.uid] && S.members[S.me.uid].email !== myEmail && S.canWrite) {
+      write(() => S.store.update('members', S.me.uid, { email: myEmail }));
     }
     render();
   }, onErr));
   S.unsubs.push(S.store.listenDoc('meta', 'offers', (d) => { S.offersMeta = d; render(); }, onErr));
+  S.unsubs.push(S.store.listenDoc('config', 'access', (d) => { S.access = d || { emails: [] }; render(); }, onErr));
 }
 
 function stopApp() {
   S.unsubs.forEach((u) => { try { u(); } catch (e) { } });
   S.unsubs = [];
-  Object.assign(S, { started: false, loaded: false, canWrite: true, live: false, lists: [], items: [], history: [], offers: [], members: {}, offersMeta: null });
+  Object.assign(S, { started: false, loaded: false, canWrite: true, isAdmin: false, access: { emails: [] }, live: false, lists: [], items: [], history: [], offers: [], members: {}, offersMeta: null });
+}
+
+async function isAdminEmail(email) {
+  if (!email || !adminEmailHash || !(window.crypto && crypto.subtle)) return false;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.trim().toLowerCase()));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('') === adminEmailHash;
 }
 
 function onUser(u) {
@@ -953,6 +1006,7 @@ function onUser(u) {
   stopApp();
   S.me = u;
   S.started = true;
+  isAdminEmail(u.email).then((a) => { S.isAdmin = a || S.store.isDemo; render(); });
   subscribe();
   S.store.getUserPrefs(u.uid).then((p) => {
     const t = p && p.theme;
