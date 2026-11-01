@@ -10,7 +10,7 @@ import {
 } from './core.js';
 
 // Shown under Einstellungen → App; bump together with CACHE in sw.js.
-const APP_VERSION = '2026-10-25.1';
+const APP_VERSION = '2026-11-01.1';
 const OFFER_MODEL = 'claude-opus-5-5';
 const PERSON_COLORS = ['#0B7A5C', '#B5527A', '#3D6FD8', '#C26A1B', '#7A55C7', '#1F8A9E'];
 
@@ -967,7 +967,7 @@ async function boot() {
   const config = demo ? 'demo' : firebaseConfig;
   $('#demoBar').hidden = !demo;
   if (!config) {
-    gate('Noch nicht eingerichtet', '<p>Für die Synchronisierung fehlt noch das Firebase-Projekt. Die Anleitung steht in der README im Ordner <code>einkaufszettel</code>.</p><p><a href="#demo" onclick="setTimeout(function(){location.reload()},0)">Demo ansehen</a></p>');
+    gate('Noch nicht eingerichtet', '<p>Für die Synchronisierung fehlt noch das Firebase-Projekt. Die Anleitung steht in der README im Ordner <code>einkaufsliste</code>.</p><p><a href="#demo" onclick="setTimeout(function(){location.reload()},0)">Demo ansehen</a></p>');
     return;
   }
   try {
