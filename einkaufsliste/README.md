@@ -47,6 +47,17 @@ Danach startet die App wie jede andere App vom Startbildschirm aus.
 Jede Person erstellt beim ersten Start ein eigenes Konto und bestätigt ihre
 E-Mail. Danach sieht sie die gemeinsamen Listen.
 
+## Rechte und private Listen
+
+Ein Admin bestimmt alles. Wer sonst hinein darf, schaltet der Admin unter
+Einstellungen → Zugang per E-Mail frei. Durchgesetzt wird das in
+`firestore.rules`.
+
+Jede Person kann außerdem **private Listen** anlegen („+ Liste“ → „Nur ich“).
+Sie liegen unter `households/main/private/<Konto-ID>/` und sind nur für diese
+Person lesbar, auch nicht für den Admin. Artikel aus privaten Listen fließen
+nicht in die gemeinsamen Vorschläge ein.
+
 ## Angebote
 
 Die Märkte bieten keine offene Schnittstelle für ihre Angebote an. Angebote

@@ -51,6 +51,10 @@ service cloud.firestore {
       match /meta/{id} {
         allow read, write: if isMember();
       }
+      // Private lists and their items: only that account, not even the admin.
+      match /private/{uid}/{document=**} {
+        allow read, write: if isMember() && request.auth.uid == uid;
+      }
       // Each person keeps their own name; the admin may remove anyone.
       match /members/{uid} {
         allow read: if isMember();
