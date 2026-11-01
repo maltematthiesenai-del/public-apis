@@ -6,7 +6,7 @@
 
    Bump CACHE whenever a file changes. */
 
-var CACHE = 'einkaufsliste-v1';
+var CACHE = 'einkaufsliste-v2';
 var NET_TIMEOUT = 3500;
 
 var ASSETS = [
