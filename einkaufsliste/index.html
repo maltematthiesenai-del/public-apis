@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Einkaufszettel</title>
+<meta name="description" content="Gemeinsame Einkaufslisten für Lidl, Aldi Nord und Rewe, live synchron auf zwei Handys.">
+<meta name="theme-color" content="#F2F4EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1512" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Einkauf">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script>
+  // Set the theme before first paint so it does not flash.
+  try {
+    var t = localStorage.getItem('ez-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { }
+</script>
+</head>
+<body>
+<div class="demo-bar" id="demoBar" hidden>Demo – nichts wird gespeichert</div>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brandrow">
+      <div class="brand"><h1>Einkaufszettel</h1></div>
+      <span class="sync" id="sync" data-state="wait" role="status"><i></i><span>Verbinde …</span></span>
+    </div>
+    <div class="chips" id="listChips" role="toolbar" aria-label="Listen"></div>
+  </div>
+</header>
+
+<main>
+  <section id="view-auth" class="wrap auth" hidden>
+    <form id="authForm" autocomplete="on" novalidate>
+      <h2 id="authTitle">Anmelden</h2>
+      <p id="authIntro">Melde dich an, um eure gemeinsamen Listen zu sehen.</p>
+      <div class="field" id="authNameField" hidden><label for="authName">Dein Vorname</label><input id="authName" autocomplete="given-name" placeholder="z. B. Anna"></div>
+      <div class="field"><label for="authEmail">E-Mail</label><input id="authEmail" type="email" autocomplete="email" inputmode="email" required></div>
+      <div class="field"><label for="authPass">Passwort</label><input id="authPass" type="password" autocomplete="current-password" minlength="6" required></div>
+      <div class="err" id="authErr" role="alert"></div>
+      <button class="btn primary" id="authSubmit" type="submit">Anmelden</button>
+      <div class="switch" id="authSwitch"><span>Noch kein Konto?</span><button type="button" data-auth-mode="signup">Konto erstellen</button></div>
+      <div class="switch"><button type="button" id="authReset">Passwort vergessen?</button></div>
+    </form>
+  </section>
+
+  <section id="view-verify" class="wrap auth" hidden>
+    <div class="empty" style="max-width:420px">
+      <h2>E-Mail bestätigen</h2>
+      <p>Wir haben dir einen Bestätigungslink an <b id="verifyEmail"></b> geschickt. Tippe auf den Link (auch im Spam-Ordner nachsehen) und komm dann hierher zurück.</p>
+      <div class="row">
+        <button class="btn primary" id="verifyDone" type="button">Ich habe bestätigt</button>
+        <button class="btn" id="verifyResend" type="button">Neu senden</button>
+      </div>
+      <button class="linkbtn" id="verifyLogout" type="button">Abmelden</button>
+    </div>
+  </section>
+
+  <section id="view-list" class="wrap" aria-label="Liste" hidden>
+    <div id="roBanner" class="banner warn" hidden>Dein Konto ist für diesen Einkaufszettel nicht freigeschaltet. Die Person, die die App eingerichtet hat, muss deine E-Mail-Adresse in den Firebase-Regeln eintragen.</div>
+    <div id="offlineBanner" class="banner warn" hidden>Keine Verbindung. Deine Änderungen werden gespeichert, sobald du wieder online bist.</div>
+    <div class="addbar">
+      <form class="addform" id="addForm" autocomplete="off">
+        <input id="addInput" type="text" enterkeyhint="done" placeholder="Artikel hinzufügen, z. B. 2 kg Äpfel" aria-label="Artikel hinzufügen">
+        <button class="btn-add" type="submit" aria-label="Hinzufügen">+</button>
+      </form>
+      <ul class="suggest" id="suggest" hidden></ul>
+    </div>
+    <div id="listBody"></div>
+  </section>
+
+  <section id="view-offers" class="wrap" aria-label="Angebote" hidden>
+    <div style="display:grid;gap:4px">
+      <h2 style="font-size:26px">Angebote</h2>
+      <div class="status" id="offersMeta"></div>
+    </div>
+    <div class="seg" id="offerFilter" role="toolbar" aria-label="Markt"></div>
+    <input class="search" id="offerSearch" type="search" placeholder="Angebote durchsuchen" aria-label="Angebote durchsuchen">
+    <div id="offersBody"></div>
+
+    <details class="panel" id="importPanel">
+      <summary>Angebote eintragen</summary>
+      <div class="inner">
+        <p class="muted" style="margin:0;font-size:14px">Mach Screenshots vom aktuellen Prospekt (App oder Website des Markts). Claude liest die Angebote aus, du prüfst sie und übernimmst sie für beide Geräte.</p>
+        <div class="links" id="flyerLinks"></div>
+        <div id="flyerNoKey" class="banner" hidden>Zum Auslesen braucht die App einen Claude-API-Schlüssel. Du trägst ihn unter Einstellungen → Prospekte auslesen ein. Ohne Schlüssel kannst du Angebote unten von Hand eintragen.</div>
+        <div id="flyerTool">
+          <div class="grid2">
+            <div class="field"><label for="flyerMarket">Markt</label><select id="flyerMarket"></select></div>
+            <div class="field"><label for="flyerFiles">Prospekt-Bilder</label><input id="flyerFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple></div>
+          </div>
+          <button class="btn primary" id="flyerRead" type="button" style="margin-top:12px;width:100%">Angebote auslesen</button>
+        </div>
+        <div class="status" id="flyerStatus" role="status"></div>
+        <div id="flyerPreview"></div>
+
+        <div class="eyebrow" style="margin-top:6px">Oder von Hand</div>
+        <form id="manualForm" class="inner" style="padding:0" autocomplete="off">
+          <div class="field"><label for="mTitle">Produkt</label><input id="mTitle" required placeholder="z. B. Frische Vollmilch 1 l"></div>
+          <div class="grid3">
+            <div class="field"><label for="mMarket">Markt</label><select id="mMarket"></select></div>
+            <div class="field"><label for="mPrice">Preis €</label><input id="mPrice" inputmode="decimal" required placeholder="0,99"></div>
+            <div class="field"><label for="mOld">Statt €</label><input id="mOld" inputmode="decimal" placeholder="1,29"></div>
+          </div>
+          <div class="field"><label for="mTo">Gültig bis</label><input id="mTo" type="date"></div>
+          <button class="btn" type="submit">Angebot speichern</button>
+        </form>
+      </div>
+    </details>
+  </section>
+
+  <section id="view-settings" class="wrap" aria-label="Einstellungen" hidden>
+    <h2 style="font-size:26px">Einstellungen</h2>
+    <div class="card">
+      <h2>Darstellung</h2>
+      <div class="segctl" id="themeCtl" role="group" aria-label="Darstellung">
+        <button type="button" data-theme-set="system">System</button>
+        <button type="button" data-theme-set="light">Hell</button>
+        <button type="button" data-theme-set="dark">Dunkel</button>
+      </div>
+    </div>
+    <div id="settingsBody" style="display:grid;gap:16px"></div>
+    <div class="card">
+      <h2>Prospekte auslesen</h2>
+      <p class="status" style="margin:0">Für das automatische Auslesen von Prospekt-Bildern braucht die App einen API-Schlüssel von <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Der Schlüssel bleibt nur auf diesem Gerät. Ein Prospekt kostet etwa 5–15 Cent.</p>
+      <div class="keyrow">
+        <input class="search" id="apiKey" type="password" autocomplete="off" placeholder="sk-ant-…" aria-label="Claude-API-Schlüssel">
+        <button class="btn" id="apiKeySave" type="button">Speichern</button>
+      </div>
+      <div class="status" id="apiKeyStatus"></div>
+    </div>
+    <div class="card">
+      <h2>App</h2>
+      <p class="status" style="margin:0" id="appVersion"></p>
+      <div class="row" style="justify-content:flex-start">
+        <button class="btn" id="checkUpdate" type="button">Nach Update suchen</button>
+        <button class="btn danger" id="logout" type="button">Abmelden</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-gate" class="wrap auth" hidden></section>
+</main>
+
+<nav class="tabbar" id="tabbar" aria-label="Bereiche" hidden>
+  <div class="wrap">
+    <button class="tab" data-view="list" aria-current="page" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/></svg>
+      Liste
+    </button>
+    <button class="tab" data-view="offers" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+      Angebote
+      <span class="badge" id="offerBadge" hidden></span>
+    </button>
+    <button class="tab" data-view="settings" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+      Einstellungen
+    </button>
+  </div>
+</nav>
+
+<div class="backdrop" id="backdrop" hidden></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <div class="wrap">
+    <div class="grab"></div>
+    <h2 id="sheetTitle">Artikel</h2>
+    <div class="field"><label for="eName">Name</label><input id="eName" type="text"></div>
+    <div class="grid2">
+      <div class="field"><label for="eQty">Menge</label><input id="eQty" inputmode="decimal" placeholder="–"></div>
+      <div class="field"><label for="eUnit">Einheit</label><select id="eUnit"></select></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="eCat">Gang</label><select id="eCat"></select></div>
+      <div class="field"><label for="eList">Liste</label><select id="eList"></select></div>
+    </div>
+    <div class="field"><label for="eNote">Notiz</label><input id="eNote" type="text" placeholder="z. B. die Bio-Variante"></div>
+    <div id="eOffers"></div>
+    <div class="audit" id="eAudit"></div>
+    <div class="actions">
+      <button class="btn danger" id="eDelete" type="button">Löschen</button>
+      <button class="btn" id="eCancel" type="button">Abbrechen</button>
+      <button class="btn primary" id="eSave" type="button">Speichern</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

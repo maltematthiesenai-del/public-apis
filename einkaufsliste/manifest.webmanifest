@@ -2,7 +2,7 @@
   "name": "Einkaufszettel",
   "short_name": "Einkauf",
   "description": "Gemeinsame Einkaufslisten für Lidl, Aldi Nord und Rewe, live synchron auf zwei Handys.",
-  "id": "./?app=einkaufszettel",
+  "id": "./",
   "lang": "de",
   "start_url": "./",
   "scope": "./",

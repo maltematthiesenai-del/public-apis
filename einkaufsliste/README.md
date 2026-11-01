@@ -5,7 +5,7 @@ Sie öffnet sich in einem eigenen Fenster ohne Browserleiste und synchronisiert
 zwei Handys live. Es gibt eigene Listen für Lidl, Aldi Nord und Rewe. Artikel,
 die gerade irgendwo im Angebot sind, bekommen ein gelbes Preisschild.
 
-- **App:** https://maltematthiesenai-del.github.io/public-apis/einkaufszettel/
+- **App:** https://maltematthiesenai-del.github.io/public-apis/einkaufsliste/
 - **Demo ohne Konto:** dieselbe Adresse mit `#demo` am Ende
 
 ## Aufbau
@@ -63,6 +63,16 @@ Ein Artikel gilt als „im Angebot“, wenn das letzte Wort seines Namens mit de
 Kopfwort eines Angebots zusammenpasst. Im Deutschen steht das Grundwort eines
 zusammengesetzten Worts am Ende: „Milch“ findet „Vollmilch“, aber „Butter“
 findet nicht „Butterkekse“.
+
+## Warum der Ordner `einkaufsliste` heißt
+
+Die App lag zuerst unter `…/einkaufszettel/`. Auf einem Android-Handy blieb
+dort ein abgebrochener Installationsversuch hängen. Chrome erkennt
+installierte Apps an ihrer Adresse und meldete deshalb „bereits installiert“,
+ohne die App öffnen zu können. Unter der neuen Adresse ist die App davon
+nicht betroffen. Die alte Adresse leitet weiter und entfernt dabei den alten
+Zwischenspeicher. Die Mannschaftskasse auf derselben Domain behält ihre
+Daten.
 
 ## Updates ausliefern
 
