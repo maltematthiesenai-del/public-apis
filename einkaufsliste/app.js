@@ -10,7 +10,7 @@ import {
 } from './core.js';
 
 // Shown under Einstellungen → App; bump together with CACHE in sw.js.
-const APP_VERSION = '2026-11-01.2';
+const APP_VERSION = '2026-11-01.3';
 const OFFER_MODEL = 'claude-opus-5-5';
 const PERSON_COLORS = ['#0B7A5C', '#B5527A', '#3D6FD8', '#C26A1B', '#7A55C7', '#1F8A9E'];
 
@@ -18,6 +18,7 @@ const S = {
   store: null, me: null, started: false,
   canWrite: true, isAdmin: false, live: false, pending: false, loaded: false,
   access: { emails: [] },
+  shared: { lists: [], items: [] }, priv: { lists: [], items: [] },
   lists: [], items: [], history: [], offers: [], offersMeta: null, members: {},
   histMap: new Map(),
   listId: null, view: 'list', offerFilter: 'match',
@@ -80,6 +81,19 @@ function arm(btn, label, fn) {
 function currentList() {
   return S.lists.find((l) => l.id === S.listId) || S.lists[0] || null;
 }
+// Private lists live under private/<uid>/, where the rules let only that
+// account read or write. Shared and private records are merged for display
+// and carry _priv so every write goes back to the right place.
+function privColl(name) { return 'private/' + S.me.uid + '/' + name; }
+function listColl(list) { return list && list._priv ? privColl('lists') : 'lists'; }
+function itemColl(item) { return item && item._priv ? privColl('items') : 'items'; }
+function listById(id) { return S.lists.find((l) => l.id === id) || null; }
+function canEditList(list) { return Boolean(list) && S.canWrite && (list._priv || S.isAdmin); }
+function mergeData() {
+  const byOrder = (a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0);
+  S.lists = S.shared.lists.slice().sort(byOrder).concat(S.priv.lists.slice().sort(byOrder));
+  S.items = S.shared.items.concat(S.priv.items);
+}
 function histId(key) { return slug(key).slice(0, 150); }
 
 function learn(name, unit, category, bump) {
@@ -98,12 +112,12 @@ function addItem(raw, extra = {}) {
   const key = fold(p.name);
   const dup = S.items.find((i) => i.listId === list.id && fold(i.name) === key);
   if (dup && !dup.done) {
-    if (p.qty != null) write(() => S.store.update('items', dup.id, { qty: p.qty, unit: p.unit || dup.unit || '', updatedAt: Date.now() }));
+    if (p.qty != null) write(() => S.store.update(itemColl(dup), dup.id, { qty: p.qty, unit: p.unit || dup.unit || '', updatedAt: Date.now() }));
     toast(dup.name + ' steht schon auf der Liste.');
     return;
   }
   if (dup && dup.done) {
-    write(() => S.store.update('items', dup.id, { done: false, doneBy: null, doneAt: null, qty: p.qty != null ? p.qty : dup.qty, unit: p.unit || dup.unit || '', updatedAt: Date.now() }));
+    write(() => S.store.update(itemColl(dup), dup.id, { done: false, doneBy: null, doneAt: null, qty: p.qty != null ? p.qty : dup.qty, unit: p.unit || dup.unit || '', updatedAt: Date.now() }));
     toast(dup.name + ' ist wieder auf der Liste.');
     return;
   }
@@ -116,8 +130,9 @@ function addItem(raw, extra = {}) {
     note: extra.note || '', done: false,
     addedBy: S.me.uid, doneBy: null, doneAt: null, createdAt: now, updatedAt: now
   };
-  write(() => S.store.set('items', S.store.newId('items'), doc));
-  learn(p.name, doc.unit, doc.category, true);
+  write(() => S.store.set(list._priv ? privColl('items') : 'items', S.store.newId('items'), doc));
+  // Private entries stay out of the shared suggestions.
+  if (!list._priv) learn(p.name, doc.unit, doc.category, true);
   if (extra.list) toast(p.name + ' steht jetzt auf ' + extra.list.name + '.');
 }
 
@@ -125,25 +140,27 @@ function toggleItem(id) {
   const it = S.items.find((i) => i.id === id);
   if (!it) return;
   const done = !it.done;
-  write(() => S.store.update('items', id, { done, doneBy: done ? S.me.uid : null, doneAt: done ? Date.now() : null, updatedAt: Date.now() }));
+  write(() => S.store.update(itemColl(it), id, { done, doneBy: done ? S.me.uid : null, doneAt: done ? Date.now() : null, updatedAt: Date.now() }));
 }
 
 function clearDone(listId) {
   const done = S.items.filter((i) => i.listId === listId && i.done);
-  write(() => S.store.batch(done.map((i) => ({ op: 'delete', coll: 'items', id: i.id }))))
+  write(() => S.store.batch(done.map((i) => ({ op: 'delete', coll: itemColl(i), id: i.id }))))
     .then((ok) => { if (ok) toast(done.length + ' erledigte Artikel entfernt.'); });
 }
 
-function createList(name, market) {
-  const order = S.lists.reduce((m, l) => Math.max(m, l.order || 0), 0) + 1;
+function createList(name, market, priv) {
+  const own = priv ? S.priv.lists : S.shared.lists;
+  const order = own.reduce((m, l) => Math.max(m, l.order || 0), 0) + 1;
   const id = S.store.newId('lists');
   S.listId = id;
-  write(() => S.store.set('lists', id, { name, market, order, catOrder: DEFAULT_ORDER.slice(), createdAt: Date.now(), createdBy: S.me.uid }));
+  try { localStorage.setItem('ez-list', id); } catch (e) { }
+  write(() => S.store.set(priv ? privColl('lists') : 'lists', id, { name, market, order, catOrder: DEFAULT_ORDER.slice(), createdAt: Date.now(), createdBy: S.me.uid }));
 }
 
 function deleteList(list) {
-  const ops = S.items.filter((i) => i.listId === list.id).map((i) => ({ op: 'delete', coll: 'items', id: i.id }));
-  ops.push({ op: 'delete', coll: 'lists', id: list.id });
+  const ops = S.items.filter((i) => i.listId === list.id).map((i) => ({ op: 'delete', coll: itemColl(i), id: i.id }));
+  ops.push({ op: 'delete', coll: listColl(list), id: list.id });
   write(() => S.store.batch(ops)).then((ok) => { if (ok) toast('Liste „' + list.name + '“ gelöscht.'); });
 }
 
@@ -183,14 +200,16 @@ function renderSync() {
   $('#offlineBanner').hidden = navigator.onLine;
 }
 
+const LOCK = '<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="privat"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+
 function renderChips() {
   const cur = currentList();
   let html = S.lists.map((l) => {
     const open = S.items.filter((i) => i.listId === l.id && !i.done).length;
     return '<button type="button" class="chip" data-list="' + esc(l.id) + '" aria-pressed="' + Boolean(cur && cur.id === l.id) + '" style="--m:' + mk(l.market).color + '">' +
-      '<span class="dot"></span>' + esc(l.name) + (open ? ' <span class="count num">' + open + '</span>' : '') + '</button>';
+      '<span class="dot"></span>' + esc(l.name) + (l._priv ? LOCK : '') + (open ? ' <span class="count num">' + open + '</span>' : '') + '</button>';
   }).join('');
-  if (S.loaded && S.canWrite && S.isAdmin) html += '<button type="button" class="chip ghost" data-act="new-list">+ Liste</button>';
+  if (S.loaded && S.canWrite) html += '<button type="button" class="chip ghost" data-act="new-list">+ Liste</button>';
   $('#listChips').innerHTML = html;
 }
 
@@ -229,7 +248,8 @@ function renderList() {
   const list = currentList();
   if (!list) {
     body.innerHTML = '<div class="empty"><h2>Noch keine Liste</h2><p>Lege für jeden Markt eine eigene Liste an. Ihr seht beide sofort jede Änderung.</p>' +
-      (S.canWrite && S.isAdmin ? '<div class="row"><button class="btn primary" data-act="quick-lists" type="button">Lidl, Aldi Nord und Rewe anlegen</button></div>' : '<p>Listen legt der Admin an.</p>') +
+      (S.canWrite && S.isAdmin ? '<div class="row"><button class="btn primary" data-act="quick-lists" type="button">Lidl, Aldi Nord und Rewe anlegen</button></div>' : '<p>Gemeinsame Listen legt der Admin an.</p>') +
+      (S.canWrite ? '<div class="row"><button class="btn" data-act="new-list" type="button">Private Liste anlegen</button></div>' : '') +
       '</div>';
     return;
   }
@@ -389,24 +409,26 @@ function renderSettings() {
   if (S.isAdmin) html += renderAccessCard();
 
   const admin = S.canWrite && S.isAdmin;
-  html += '<div class="card"><h2>Listen</h2>' + (admin ? '' : '<p class="status" style="margin:0">Listen und Gänge ändert der Admin.</p>') + '<div class="lists-edit">';
+  html += '<div class="card"><h2>Listen</h2><p class="status" style="margin:0">' +
+    (admin ? 'Private Listen (' + LOCK + ') sieht nur, wer sie angelegt hat. Auch du als Admin siehst die privaten Listen anderer nicht.' : 'Gemeinsame Listen ändert der Admin. Deine privaten Listen (' + LOCK + ') siehst nur du.') + '</p><div class="lists-edit">';
   S.lists.forEach((l, idx) => {
     const order = catOrderOf(l);
-    const dis = admin ? '' : ' disabled';
-    html += '<div class="lrow"><div class="grid2">' +
+    const can = canEditList(l);
+    const dis = can ? '' : ' disabled';
+    html += '<div class="lrow">' + (l._priv ? '<div class="eyebrow">' + LOCK + ' Privat · nur für dich</div>' : '<div class="eyebrow">Gemeinsam</div>') + '<div class="grid2">' +
       '<div class="field"><label for="ln-' + idx + '">Name</label><input id="ln-' + idx + '" data-lname="' + esc(l.id) + '" value="' + esc(l.name) + '"' + dis + '></div>' +
       '<div class="field"><label for="lm-' + idx + '">Markt</label><select id="lm-' + idx + '" data-lmarket="' + esc(l.id) + '"' + dis + '>' +
       Object.keys(MARKETS).map((m) => '<option value="' + m + '"' + (l.market === m ? ' selected' : '') + '>' + esc(MARKETS[m].name) + '</option>').join('') +
       '</select></div></div>' +
       '<details><summary class="lbl" style="cursor:pointer">Reihenfolge der Gänge im Laden</summary><ul class="order" style="margin-top:8px">' +
       order.map((cid, i) => '<li><span>' + esc(CAT_BY_ID[cid].name) + '</span>' +
-        '<button type="button" aria-label="Nach oben" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="-1"' + (i === 0 || !admin ? ' disabled' : '') + '>↑</button>' +
-        '<button type="button" aria-label="Nach unten" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="1"' + (i === order.length - 1 || !admin ? ' disabled' : '') + '>↓</button></li>').join('') +
+        '<button type="button" aria-label="Nach oben" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="-1"' + (i === 0 || !can ? ' disabled' : '') + '>↑</button>' +
+        '<button type="button" aria-label="Nach unten" data-move="' + esc(l.id) + '" data-cat="' + cid + '" data-dir="1"' + (i === order.length - 1 || !can ? ' disabled' : '') + '>↓</button></li>').join('') +
       '</ul></details>' +
-      (admin ? '<div><button class="btn danger" type="button" data-del-list="' + esc(l.id) + '">Liste löschen</button></div>' : '') +
+      (can ? '<div><button class="btn danger" type="button" data-del-list="' + esc(l.id) + '">Liste löschen</button></div>' : '') +
       '</div>';
   });
-  if (admin) html += '<button class="btn" type="button" data-act="new-list">+ Neue Liste</button>';
+  if (S.canWrite) html += '<button class="btn" type="button" data-act="new-list">+ Neue Liste</button>';
   html += '</div></div>';
 
   html += '<div class="card"><h2>Vorschläge</h2><p class="status" style="margin:0">Die App merkt sich ' + S.history.length + ' Artikel mit Gang und Einheit und schlägt sie beim Tippen vor.</p>' +
@@ -469,7 +491,7 @@ function openSheet(id) {
   $('#eQty').value = it.qty != null ? String(it.qty).replace('.', ',') : '';
   $('#eUnit').innerHTML = UNITS.map((u) => '<option value="' + u + '"' + ((it.unit || '') === u ? ' selected' : '') + '>' + (u || '–') + '</option>').join('');
   $('#eCat').innerHTML = CATS.map((c) => '<option value="' + c.id + '"' + (it.category === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('');
-  $('#eList').innerHTML = S.lists.map((l) => '<option value="' + esc(l.id) + '"' + (it.listId === l.id ? ' selected' : '') + '>' + esc(l.name) + '</option>').join('');
+  $('#eList').innerHTML = S.lists.map((l) => '<option value="' + esc(l.id) + '"' + (it.listId === l.id ? ' selected' : '') + '>' + esc(l.name) + (l._priv ? ' (privat)' : '') + '</option>').join('');
   $('#eNote').value = it.note || '';
   const offers = offersFor(it);
   $('#eOffers').innerHTML = offers.length ? '<div class="lbl" style="margin-bottom:6px">Im Angebot</div><ul class="offers">' + offers.slice(0, 4).map((o) => offerCard(o, '', true)).join('') + '</ul>' : '';
@@ -498,8 +520,55 @@ function saveSheet() {
     category: $('#eCat').value, listId: $('#eList').value, note: $('#eNote').value.trim(), updatedAt: Date.now()
   };
   closeSheet();
-  write(() => S.store.update('items', id, data));
-  if (data.category !== it.category || data.unit !== it.unit || name !== it.name) learn(name, data.unit, data.category, false);
+  const target = listById(data.listId);
+  const toPriv = Boolean(target && target._priv);
+  if (toPriv !== Boolean(it._priv)) {
+    // Moving between a shared and a private list: the item changes storage.
+    const full = Object.assign({}, it, data);
+    delete full.id; delete full._priv;
+    write(() => S.store.batch([
+      { op: 'delete', coll: itemColl(it), id },
+      { op: 'set', coll: toPriv ? privColl('items') : 'items', id, data: full }
+    ]));
+  } else {
+    write(() => S.store.update(itemColl(it), id, data));
+  }
+  if (!toPriv && (data.category !== it.category || data.unit !== it.unit || name !== it.name)) learn(name, data.unit, data.category, false);
+}
+
+/* ---------- New list ---------- */
+
+function setNewListVis(v) {
+  S.newListVis = v;
+  document.querySelectorAll('[data-vis]').forEach((b) => b.setAttribute('aria-pressed', String(b.getAttribute('data-vis') === v)));
+  $('#nlHint').textContent = v === 'private'
+    ? (S.isAdmin ? 'Nur du siehst diese Liste. Andere mit Zugang sehen sie nicht.' : 'Nur du siehst diese Liste. Auch der Admin kann sie nicht öffnen.')
+    : 'Alle mit Zugang sehen und bearbeiten diese Liste.';
+}
+function openNewList() {
+  if (!S.canWrite) return;
+  $('#nlName').value = '';
+  $('#nlMarket').innerHTML = Object.keys(MARKETS).map((m) => '<option value="' + m + '"' + (m === 'none' ? ' selected' : '') + '>' + esc(MARKETS[m].name) + '</option>').join('');
+  const shared = document.querySelector('[data-vis="shared"]');
+  shared.disabled = !S.isAdmin;
+  shared.title = S.isAdmin ? '' : 'Gemeinsame Listen legt der Admin an.';
+  setNewListVis(S.isAdmin ? 'shared' : 'private');
+  $('#backdrop').hidden = false;
+  $('#newListSheet').hidden = false;
+  setTimeout(() => $('#nlName').focus(), 50);
+}
+function closeNewList() {
+  $('#newListSheet').hidden = true;
+  if ($('#sheet').hidden) $('#backdrop').hidden = true;
+}
+function submitNewList() {
+  const name = $('#nlName').value.trim().slice(0, 40);
+  if (!name) { toast('Gib der Liste einen Namen.'); $('#nlName').focus(); return; }
+  const priv = S.newListVis === 'private' || !S.isAdmin;
+  createList(name, $('#nlMarket').value, priv);
+  closeNewList();
+  setView('list');
+  toast(priv ? 'Private Liste „' + name + '“ angelegt.' : 'Liste „' + name + '“ angelegt.');
 }
 
 /* ---------- Offers import ---------- */
@@ -682,13 +751,13 @@ document.addEventListener('click', (e) => {
   }
   if (t.hasAttribute('data-offer-filter')) { S.offerFilter = t.getAttribute('data-offer-filter'); renderOffers(); return; }
   if (t.hasAttribute('data-move')) {
-    const l = S.lists.find((x) => x.id === t.getAttribute('data-move'));
-    if (!l) return;
+    const l = listById(t.getAttribute('data-move'));
+    if (!canEditList(l)) return;
     const order = catOrderOf(l);
     const i = order.indexOf(t.getAttribute('data-cat')), j = i + Number(t.getAttribute('data-dir'));
     if (i < 0 || j < 0 || j >= order.length) return;
     [order[i], order[j]] = [order[j], order[i]];
-    write(() => S.store.update('lists', l.id, { catOrder: order }));
+    write(() => S.store.update(listColl(l), l.id, { catOrder: order }));
     return;
   }
   if (t.hasAttribute('data-del-list')) {
@@ -701,7 +770,7 @@ document.addEventListener('click', (e) => {
   if (act === 'toggle' && row) { if (S.canWrite) toggleItem(row.getAttribute('data-id')); return; }
   if (act === 'edit' && row) { openSheet(row.getAttribute('data-id')); return; }
   if (act === 'clear-done') { const cl = currentList(); if (cl) arm(t, 'Wirklich entfernen?', () => clearDone(cl.id)); return; }
-  if (act === 'new-list') { createList('Neue Liste', 'none'); setView('settings'); toast('Liste angelegt. Gib ihr hier einen Namen.'); return; }
+  if (act === 'new-list') { openNewList(); return; }
   if (act === 'quick-lists') {
     const base = S.lists.reduce((m, l) => Math.max(m, l.order || 0), 0);
     write(() => S.store.batch(OFFER_MARKETS.map((m, i) => ({
@@ -771,12 +840,12 @@ $('#offerSearch').addEventListener('input', renderOffers);
 $('#settingsBody').addEventListener('change', (e) => {
   const t = e.target;
   if (t.hasAttribute('data-lname')) {
-    const v = t.value.trim(), id = t.getAttribute('data-lname');
-    if (v) write(() => S.store.update('lists', id, { name: v }));
+    const v = t.value.trim(), l = listById(t.getAttribute('data-lname'));
+    if (v && canEditList(l)) write(() => S.store.update(listColl(l), l.id, { name: v }));
   }
   if (t.hasAttribute('data-lmarket')) {
-    const id = t.getAttribute('data-lmarket'), m = t.value;
-    write(() => S.store.update('lists', id, { market: m }));
+    const l = listById(t.getAttribute('data-lmarket')), m = t.value;
+    if (canEditList(l)) write(() => S.store.update(listColl(l), l.id, { market: m }));
   }
   if (t.hasAttribute('data-myname')) {
     const v = t.value.trim().slice(0, 40);
@@ -788,16 +857,25 @@ $('#settingsBody').addEventListener('focusout', () => {
 });
 
 $('#eSave').addEventListener('click', saveSheet);
+$('#nlCancel').addEventListener('click', closeNewList);
+$('#nlCreate').addEventListener('click', submitNewList);
+$('#nlName').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitNewList(); } });
+document.querySelectorAll('[data-vis]').forEach((b) => b.addEventListener('click', () => { if (!b.disabled) setNewListVis(b.getAttribute('data-vis')); }));
 $('#eCancel').addEventListener('click', closeSheet);
-$('#backdrop').addEventListener('click', closeSheet);
+$('#backdrop').addEventListener('click', () => { closeSheet(); closeNewList(); });
 $('#eDelete').addEventListener('click', () => {
   const id = S.editing;
   arm($('#eDelete'), 'Wirklich löschen?', () => {
     closeSheet();
-    write(() => S.store.remove('items', id));
+    const it = S.items.find((i) => i.id === id);
+    if (it) write(() => S.store.remove(itemColl(it), id));
   });
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.editing) closeSheet(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (S.editing) closeSheet();
+  if (!$('#newListSheet').hidden) closeNewList();
+});
 
 $('#flyerRead').addEventListener('click', readFlyer);
 $('#manualForm').addEventListener('submit', (e) => {
@@ -936,19 +1014,32 @@ function subscribe() {
     if (got.lists && got.items) S.loaded = true;
     if (k === 'items') { S.live = !meta.fromCache; S.pending = meta.pending; }
   };
+  const pickList = () => {
+    if (S.lists.find((l) => l.id === S.listId)) return;
+    let remembered = null;
+    try { remembered = localStorage.getItem('ez-list'); } catch (e) { }
+    S.listId = (S.lists.find((l) => l.id === remembered) || S.lists[0] || {}).id || null;
+  };
+  const itemsChanged = () => {
+    mergeData(); render();
+    if (S.editing && !S.items.find((i) => i.id === S.editing)) { closeSheet(); toast('Der Artikel wurde gerade gelöscht.'); }
+  };
   S.unsubs.push(S.store.listen('lists', (docs, meta) => {
-    S.lists = docs.sort((a, b) => (a.order || 0) - (b.order || 0) || (a.createdAt || 0) - (b.createdAt || 0));
-    if (!S.lists.find((l) => l.id === S.listId)) {
-      let remembered = null;
-      try { remembered = localStorage.getItem('ez-list'); } catch (e) { }
-      S.listId = (S.lists.find((l) => l.id === remembered) || S.lists[0] || {}).id || null;
-    }
+    S.shared.lists = docs;
+    mergeData(); pickList();
     mark('lists', meta); render();
   }, onErr));
   S.unsubs.push(S.store.listen('items', (docs, meta) => {
-    S.items = docs;
-    mark('items', meta); render();
-    if (S.editing && !S.items.find((i) => i.id === S.editing)) { closeSheet(); toast('Der Artikel wurde gerade gelöscht.'); }
+    S.shared.items = docs;
+    mark('items', meta); itemsChanged();
+  }, onErr));
+  S.unsubs.push(S.store.listen(privColl('lists'), (docs) => {
+    S.priv.lists = docs.map((d) => Object.assign(d, { _priv: true }));
+    mergeData(); pickList(); render();
+  }, onErr));
+  S.unsubs.push(S.store.listen(privColl('items'), (docs) => {
+    S.priv.items = docs.map((d) => Object.assign(d, { _priv: true }));
+    itemsChanged();
   }, onErr));
   S.unsubs.push(S.store.listen('history', (docs) => {
     S.history = docs;
@@ -978,7 +1069,7 @@ function subscribe() {
 function stopApp() {
   S.unsubs.forEach((u) => { try { u(); } catch (e) { } });
   S.unsubs = [];
-  Object.assign(S, { started: false, loaded: false, canWrite: true, isAdmin: false, access: { emails: [] }, live: false, lists: [], items: [], history: [], offers: [], members: {}, offersMeta: null });
+  Object.assign(S, { started: false, loaded: false, canWrite: true, isAdmin: false, access: { emails: [] }, live: false, lists: [], items: [], shared: { lists: [], items: [] }, priv: { lists: [], items: [] }, history: [], offers: [], members: {}, offersMeta: null });
 }
 
 async function isAdminEmail(email) {

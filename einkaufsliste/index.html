@@ -194,6 +194,26 @@
     </div>
   </div>
 </div>
+<div class="sheet" id="newListSheet" role="dialog" aria-modal="true" aria-labelledby="nlTitle" hidden>
+  <div class="wrap">
+    <div class="grab"></div>
+    <h2 id="nlTitle">Neue Liste</h2>
+    <div class="field"><label for="nlName">Name</label><input id="nlName" type="text" maxlength="40" placeholder="z. B. Drogerie oder Geschenke"></div>
+    <div class="field"><label for="nlMarket">Markt</label><select id="nlMarket"></select></div>
+    <div class="field">
+      <span class="lbl">Wer sieht die Liste?</span>
+      <div class="segctl two" role="group" aria-label="Wer sieht die Liste?">
+        <button type="button" data-vis="shared">Alle mit Zugang</button>
+        <button type="button" data-vis="private">Nur ich</button>
+      </div>
+      <p class="status" id="nlHint" style="margin:0"></p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="nlCancel" type="button">Abbrechen</button>
+      <button class="btn primary" id="nlCreate" type="button">Anlegen</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script type="module" src="app.js"></script>
